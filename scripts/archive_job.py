@@ -55,7 +55,7 @@ def main():
         finally:
             browser.close()
 
-    print(f"⬇️ Saved to {out_dir}")
+    print(f"\n⬇️ Saved to {out_dir}\n")
 
 if __name__ == "__main__":
     main()
