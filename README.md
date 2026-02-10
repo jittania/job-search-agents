@@ -38,6 +38,8 @@
         batchsummary 2026-02-09
         ```
 
+- `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists.
+
 ## Skills
 
 ✅ Proved you can call a real cloud LLM API (Claude) from Python without leaking secrets
