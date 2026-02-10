@@ -4,8 +4,10 @@
 
 ## Skills
 
-✅ Prove you can call a real cloud LLM API (Claude) from Python without leaking secrets.
+✅ Proved you can call a real cloud LLM API (Claude) from Python without leaking secrets
+
 ✅ Built a job-ingestion pipeline to archive dynamic web content deterministically (HTML, plaintext, PDF)
+
 ✅ Implemented Google Sheets integration to archive new job postings without duplication
 
 ## Tools
