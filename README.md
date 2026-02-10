@@ -8,6 +8,9 @@
 
 - `genbullets data/<company>/<date>` → Generates tailored, job-specific resume bullets using the archived job description and base resume, writing `resume_bullets.json`.
 
+- `gencl <job_folder>`
+→ Generates a single, job-specific cover letter (`cover_letter.md`) using the archived job description and base resume; and refuses to overwrite if a cover letter already exists.
+
 
 ## Skills
 
