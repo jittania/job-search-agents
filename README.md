@@ -6,6 +6,8 @@
 
 - `fitjob <job_folder>` → Runs Claude fit scoring + keyword extraction on a single archived job folder and writes `fit.json`.
 
+- `genbullets data/<company>/<date>` → Generates tailored, job-specific resume bullets using the archived job description and base resume, writing `resume_bullets.json`.
+
 
 ## Skills
 
