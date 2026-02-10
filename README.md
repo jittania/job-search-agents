@@ -1,3 +1,29 @@
+## Daily Job Search Workflow (10–20 minutes)
+
+1. Archive new applications
+   - `archivejobs`
+
+2. (Optional, per job) Run fit analysis
+   - `fitjob data/<company>/<date>`
+
+3. (Optional, per job) Generate tailored resume bullets
+   - `genbullets data/<company>/<date>`
+
+4. (Optional, per job) Generate cover letter
+   - `gencl data/<company>/<date>`
+
+5. Add company research sources (only for jobs you care about)
+   - Create `sources.txt` in job folder
+   - Run: `batchsummary`
+
+6. Generate hiring manager outreach drafts
+   - `batchhm`
+
+7. Identify jobs needing follow-up (every few days)
+   - `followups 10`
+
+---
+
 ## Local Commands
 
 - `archivejobs` → Archive new job postings from tracker (one command)
@@ -40,6 +66,9 @@
 
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists.
 - `followups [N]` → Identifies applications that need follow-up based on sheet data (includes jobs where `DATE OF OUTCOME` is empty and the applied `DATE` is ≥ N days ago), then writes a Markdown report to `data/followups_<YYYY-MM-DD>.md`.
+- `funnelstats` → Generates a snapshot of job-search funnel metrics (applications, interviews, offers, timing), then writes `data/funnel_stats_<YYYY-MM-DD>.md`.
+
+---
 
 ## Skills
 
@@ -53,6 +82,23 @@
 
 ✅ Implemented AI-based JD↔resume fit scoring and keyword extraction, producing structured artifacts (`fit.json`)
 
+✅ Designed and implemented an end-to-end AI-assisted job search automation pipeline in Python
+
+✅ Integrated cloud LLM APIs (Anthropic / Claude) securely using environment variables and virtual environments
+
+✅ Built deterministic ingestion pipelines to archive dynamic web content (HTML, plaintext, PDF) using Playwright and BeautifulSoup
+
+✅ Implemented Google Sheets API integrations for incremental data ingestion, deduplication, and state tracking
+
+✅ Created structured data artifacts for downstream automation (job index, fit scores, keyword extraction, summaries)
+
+✅ Developed AI workflows for resume tailoring, cover letter generation, company research, and outreach drafting
+
+✅ Implemented rules-based analytics and reporting (follow-up detection, application funnel metrics)
+
+✅ Designed CLI tooling and shell aliases for repeatable, low-friction daily workflows
+
+---
 
 ## Tools
 
