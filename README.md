@@ -11,6 +11,32 @@
 - `gencl <job_folder>`
 → Generates a single, job-specific cover letter (`cover_letter.md`) using the archived job description and base resume; and refuses to overwrite if a cover letter already exists.
 
+- `batchsummary` →
+
+        For each new job you want summarized, create sources.txt
+
+        ```
+        touch data/costco/2026-02-09/sources.txt
+        ```
+
+        Put URLs in it (one per line), e.g.
+
+        ```
+        https://www.costco.com/
+        https://careers.costco.com/
+        ```
+
+        Run batch for today
+
+        ```
+        batchsummary
+        ```
+
+        Or for a specific date folder:
+
+        ```
+        batchsummary 2026-02-09
+        ```
 
 ## Skills
 
