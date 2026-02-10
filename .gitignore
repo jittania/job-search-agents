@@ -3,3 +3,6 @@
 __pycache__/
 
 google_service_account.json
+
+# Local data artifacts (job archives, resumes, outputs)
+data/
