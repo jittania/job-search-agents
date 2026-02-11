@@ -116,6 +116,7 @@ def main():
                 check=True,
             )
             company_display = company_from_sheet
+            job_dir = DATA_DIR / slugify(company_display) / date_applied_iso
         else:
             print(f"\n⬇️ Row {idx}: archiving (inferring company) | {url}")
             result = subprocess.run(
@@ -131,8 +132,15 @@ def main():
                     if company_col:
                         ws.update_cell(idx, company_col, company_display)
                     break
-
-        job_dir = DATA_DIR / slugify(company_display) / date_applied_iso
+            company_for_folder = company_display
+            if (company_display or "").strip() in ("", "Unknown"):
+                manual = input(f"  Row {idx}: Could not identify company. Enter company name (or Enter to keep 'Unknown'): ").strip()
+                if manual:
+                    company_display = manual
+                    if company_col:
+                        ws.update_cell(idx, company_col, company_display)
+            # Archive lives under inferred name (possibly "unknown"); use that for job_dir
+            job_dir = DATA_DIR / slugify(company_for_folder or "unknown") / date_applied_iso
         if not (job_dir / "job.txt").exists():
             print(f"  ⚠️ No job.txt at {job_dir}; skipping metadata and fit score.")
             ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
@@ -151,6 +159,11 @@ def main():
         else:
             try:
                 meta = json.loads(result.stdout.strip())
+                role_title = (meta.get("role_title") or "").strip()
+                if role_title in ("", "Unknown"):
+                    manual = input(f"  Row {idx}: Could not identify role title. Enter role title (or Enter to keep 'Unknown'): ").strip()
+                    if manual:
+                        meta["role_title"] = manual
                 # Coerce role_level to sheet dropdown: MID | SENIOR (map others)
                 if "role_level" in meta:
                     rl = meta["role_level"].upper()

@@ -3,6 +3,8 @@
 __pycache__/
 
 google_service_account.json
+credentials.json
+.drive_oauth_token.json
 
 # Local data artifacts (job archives, resumes, outputs)
 data/
