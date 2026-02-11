@@ -1,41 +1,40 @@
-## Daily Job Search Workflow (10–20 minutes)
+## Daily Usage
 
-1. Archive new applications
-   - `archivejobs`
+**Finding/Isolating Job Postings**
 
-2. (Optional, per job) Run fit analysis
-   - `fitjob data/<company>/<date>`
+1. Save potential jobs to tracker (links and date columns only)
 
-3. (Optional, per job) Generate tailored resume bullets
-   - `genbullets data/<company>/<date>`
+2. Run one command for new rows: archive + metadata + initial fit score - `populatejobs` (or separately: `archivejobs` then `batchfitscore`)
 
-4. (Optional, per job) Generate cover letter
-   - `gencl data/<company>/<date>`
+**Applying**
 
-5. Add company research sources (only for jobs you care about)
+1. Batch generate tailored resume bullets and cover letters with `genbullets today && gencl today`
+
+2. Add company research sources (only for jobs you care about)
    - Create `sources.txt` in job folder
    - Run: `batchsummary`
 
-6. Generate hiring manager outreach drafts
+3. Generate hiring manager outreach drafts
    - `batchhm`
 
-7. Identify jobs needing follow-up (every few days)
+4. Identify jobs needing follow-up (every few days)
    - `followups 10`
 
 ---
 
 ## Local Commands
 
-- `archivejobs` → Archive new job postings from tracker (one command)
+- `populatejobs` → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for “new rows only.”
+
+- `archivejobs` → Archive new job postings from tracker only (no metadata or fit score)
 
 - `buildindex` → Generates/refreshes `data/job_index.csv` from the tracker (job_id, company, role title, posting link, archived_at, archive_path).
 
 - `fitjob <job_folder>` → Runs Claude fit scoring + keyword extraction on a single archived job folder and writes `fit.json`.
 
-- `genbullets data/<company>/<date>` → Generates tailored, job-specific resume bullets using the archived job description and base resume, writing `resume_bullets.json`.
+- `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for all job folders for that day that don’t have them yet. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder.
 
-- `gencl <job_folder>`
-→ Generates a single, job-specific cover letter (`cover_letter.md`) using the archived job description and base resume; and refuses to overwrite if a cover letter already exists.
+- `gencl [today|YYYY-MM-DD]` → Batch: generates cover letter (`cover_letter.md`) for all job folders for that day that don’t have one yet. No argument = today. Single job: `gencl data/<company>/<date>` overwrites `cover_letter.md` for that folder.
 
 - `batchsummary` →
 
