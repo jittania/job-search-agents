@@ -8,17 +8,17 @@
 
 **Applying**
 
-1. Batch generate tailored resume bullets and cover letters with `genbullets today && gencl today`
+1. Batch duplicate base resume with `duplicate_resume_docs`
 
-2. Add company research sources (only for jobs you care about)
+2. Batch generate tailored resume bullets and cover letters with `genbullets today && gencl today`
+
+3. Add company research sources (only for jobs you care about)
    - Create `sources.txt` in job folder
    - Run: `batchsummary`
 
-3. Generate hiring manager outreach drafts
-   - `batchhm`
+4. Generate hiring manager outreach drafts with `batchhm`
 
-4. Identify jobs needing follow-up (every few days)
-   - `followups 10`
+5. Identify jobs needing follow-up (every few days) with `followups 10`
 
 ---
 
@@ -64,7 +64,11 @@
         ```
 
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists.
+
+- `duplicate_resume_docs [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase).
+
 - `followups [N]` → Identifies applications that need follow-up based on sheet data (includes jobs where `DATE OF OUTCOME` is empty and the applied `DATE` is ≥ N days ago), then writes a Markdown report to `data/followups_<YYYY-MM-DD>.md`.
+
 - `funnelstats` → Generates a snapshot of job-search funnel metrics (applications, interviews, offers, timing), then writes `data/funnel_stats_<YYYY-MM-DD>.md`.
 
 ---
@@ -89,6 +93,8 @@
 
 ✅ Implemented Google Sheets API integrations for incremental data ingestion, deduplication, and state tracking
 
+✅ Integrated Google Drive API with OAuth for user-quota file operations (e.g. duplicating resume docs into a folder)
+
 ✅ Created structured data artifacts for downstream automation (job index, fit scores, keyword extraction, summaries)
 
 ✅ Developed AI workflows for resume tailoring, cover letter generation, company research, and outreach drafting
@@ -106,3 +112,4 @@
 - Playwright — headless browser automation for JS-rendered pages + PDF generation
 - BeautifulSoup — HTML parsing and text extraction
 - Google Sheets API
+- Google Drive API (OAuth for user-quota copies)
