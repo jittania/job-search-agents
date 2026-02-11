@@ -61,7 +61,7 @@ def main():
     col = {h.strip().lower(): i + 1 for i, h in enumerate(headers)}  # 1-based, case-insensitive
 
     archived_at_col = col["archived_at"]
-    company_col = col["company"]
+    company_col = col.get("company")  # optional: inferred from job page if missing
     url_col = col["posting link"]
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
     if not date_applied_col:
@@ -71,11 +71,11 @@ def main():
 
     for idx, row in enumerate(rows, start=2):  # sheet row numbers
         archived_at = (row[archived_at_col - 1] or "").strip()
-        company = (row[company_col - 1] or "").strip()
         url = (row[url_col - 1] or "").strip()
         date_applied_raw = (row[date_applied_col - 1] or "").strip() if date_applied_col <= len(row) else ""
+        company_from_sheet = (row[company_col - 1] or "").strip() if company_col and company_col <= len(row) else ""
 
-        if not url or not company or archived_at:
+        if not url or archived_at:
             continue
 
         date_applied_iso = parse_date_applied(date_applied_raw)
@@ -83,14 +83,30 @@ def main():
             print(f"\n⚠️ Skipping row {idx}: no valid '{DATE_APPLIED_HEADER}' (got: {date_applied_raw!r})")
             continue
 
-        print(f"Archiving row {idx}: {company} | {url} | {date_applied_iso}")
-
-        cmd = ["python", str(ARCHIVE_SCRIPT), company, url, date_applied_iso]
-        subprocess.run(cmd, check=True)
+        # Company from sheet if present, else inferred from job description
+        if company_from_sheet:
+            print(f"\n⬇️ Archiving row {idx}: {company_from_sheet} | {url} | {date_applied_iso}")
+            subprocess.run(
+                ["python", str(ARCHIVE_SCRIPT), company_from_sheet, url, date_applied_iso],
+                check=True,
+            )
+        else:
+            print(f"\n⬇️ Archiving row {idx}: (inferring company from job) | {url} | {date_applied_iso}")
+            result = subprocess.run(
+                ["python", str(ARCHIVE_SCRIPT), url, date_applied_iso],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            if company_col:
+                for line in (result.stdout or "").splitlines():
+                    if line.startswith("COMPANY: "):
+                        ws.update_cell(idx, company_col, line.removeprefix("COMPANY: ").strip())
+                        break
 
         ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
 
-    print("\n✅ Done\n")
+    print("\nDone\n")
 
 if __name__ == "__main__":
     main()
