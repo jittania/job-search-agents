@@ -65,7 +65,7 @@ def main():
 
     out_path = job_dir / "resume_bullets.json"
     out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print(f"\n✅ Wrote {out_path}\n")
+    print(f"\n📝 Wrote {out_path}\n")
 
 
 if __name__ == "__main__":

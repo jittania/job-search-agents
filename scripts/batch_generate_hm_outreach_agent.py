@@ -88,7 +88,7 @@ def main():
 
         out_path.write_text(text + "\n", encoding="utf-8")
         wrote += 1
-        print(f"✅ Wrote {out_path}")
+        print(f"📧 Wrote {out_path}")
 
     print(f"\nDone. wrote={wrote} skipped={skipped}\n")
 

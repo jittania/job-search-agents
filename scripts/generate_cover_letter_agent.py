@@ -7,11 +7,13 @@ from dotenv import load_dotenv
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python scripts/generate_cover_letter.py <job_folder>")
+    args = [a for a in sys.argv[1:] if a != "--overwrite"]
+    overwrite = "--overwrite" in sys.argv[1:]
+    if len(args) != 1:
+        print("Usage: python scripts/generate_cover_letter_agent.py <job_folder> [--overwrite]")
         raise SystemExit(1)
 
-    job_dir = Path(sys.argv[1])
+    job_dir = Path(args[0])
     if not job_dir.exists():
         raise SystemExit(f"Folder not found: {job_dir}")
 
@@ -19,7 +21,7 @@ def main():
     url_txt = job_dir / "url.txt"
     out_path = job_dir / "cover_letter.md"
 
-    if out_path.exists():
+    if out_path.exists() and not overwrite:
         raise SystemExit(f"cover_letter.md already exists in {job_dir}")
 
     if not job_txt.exists():
@@ -69,7 +71,7 @@ def main():
         raise SystemExit("Model returned empty output")
 
     out_path.write_text(letter + "\n", encoding="utf-8")
-    print(f"\n✅ Wrote {out_path}\n")
+    print(f"\n✍️ Wrote {out_path}\n")
 
 
 if __name__ == "__main__":
