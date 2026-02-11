@@ -15,15 +15,15 @@ def clean_text_from_html(html: str) -> str:
     return " ".join(soup.get_text(separator=" ").split())
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python scripts/archive_job.py <company> <url>")
+    if len(sys.argv) not in (3, 4):
+        print("Usage: python scripts/archive_job.py <company> <url> [date_applied_YYYY-MM-DD]")
         raise SystemExit(1)
 
     company = slugify(sys.argv[1])
     url = sys.argv[2]
+    folder_date = sys.argv[3] if len(sys.argv) == 4 else date.today().isoformat()
 
-    today = date.today().isoformat()
-    out_dir = Path("data") / company / today
+    out_dir = Path("data") / company / folder_date
     out_dir.mkdir(parents=True, exist_ok=True)
 
     (out_dir / "url.txt").write_text(url, encoding="utf-8")
