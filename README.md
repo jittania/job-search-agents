@@ -8,9 +8,9 @@
 
 **Applying**
 
-1. Batch duplicate base resume with `duplicate_resume_docs`
+1. Batch duplicate base resume with `dupres`
 
-2. Batch generate tailored resume bullets and cover letters with `genbullets today && gencl today`
+2. Batch generate tailored resume bullets and cover letters (bullets → local JSON; cover letters → Drive .docx) with `genbullets today && gencl today`
 
 3. Add company research sources (only for jobs you care about)
    - Create `sources.txt` in job folder
@@ -34,7 +34,7 @@
 
 - `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for all job folders for that day that don’t have them yet. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder.
 
-- `gencl [today|YYYY-MM-DD]` → Batch: generates cover letter (`cover_letter.md`) for all job folders for that day that don’t have one yet. No argument = today. Single job: `gencl data/<company>/<date>` overwrites `cover_letter.md` for that folder.
+- `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive.
 
 - `batchsummary` →
 
@@ -65,7 +65,9 @@
 
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists.
 
-- `duplicate_resume_docs [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase).
+- `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase).
+
+- `dupcl [YYYY-MM-DD]` → For each job applied on that date (default: today), creates a blank Word document and uploads it to the cover letters Drive folder with the same naming: `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>.docx`. Use `gencl` to fill them with AI-generated cover letters.
 
 - `followups [N]` → Identifies applications that need follow-up based on sheet data (includes jobs where `DATE OF OUTCOME` is empty and the applied `DATE` is ≥ N days ago), then writes a Markdown report to `data/followups_<YYYY-MM-DD>.md`.
 
