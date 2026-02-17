@@ -1,4 +1,4 @@
-"""Batch: generate resume_bullets.json for job folders for a given day (default today) from the tracker sheet. Skips folders that already have resume_bullets.json."""
+"""Batch: generate resume_bullets.json for job folders for a given day (default today) from the tracker sheet. Overwrites existing resume_bullets.json."""
 import os
 import subprocess
 import sys
@@ -101,12 +101,7 @@ def main():
         target_dirs.append(job_dir)
 
     wrote = 0
-    skipped = 0
     for job_dir in target_dirs:
-        out_path = job_dir / OUTPUT_FILE
-        if out_path.exists():
-            skipped += 1
-            continue
         print(f"📋 Bullets: {job_dir.relative_to(DATA_DIR)}")
         subprocess.run(
             ["python", str(BULLETS_SCRIPT), str(job_dir)],
@@ -114,7 +109,7 @@ def main():
         )
         wrote += 1
 
-    print(f"\n✅ Done. wrote={wrote} skipped={skipped}\n")
+    print(f"\n✅ Done. wrote={wrote}\n")
 
 
 if __name__ == "__main__":

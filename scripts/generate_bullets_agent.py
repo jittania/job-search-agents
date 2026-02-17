@@ -59,25 +59,30 @@ def main():
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     prompt = f"""
-        You are tailoring resume bullets for a specific job.
+        You are tailoring resume bullets for a specific job. For each tailored bullet you must say WHERE on the resume it goes and whether to REPLACE an existing bullet or APPEND.
 
         Return ONLY valid JSON with this schema (no markdown, no code fences):
         {{
         "tailored_bullets": [
             {{
             "bullet": "<concise, impact-focused bullet>",
-            "why_it_matches": "<one short sentence>"
+            "why_it_matches": "<one short sentence>",
+            "placement": {{
+              "section": "PROFESSIONAL EXPERIENCE" or "KEY PROJECTS",
+              "role_or_project": "<exact role or project heading from the resume, e.g. Zulily, Full Stack Software Engineer (Vendor Team) or Underwater Acoustic Messaging Device>",
+              "action": "replace" or "append",
+              "replace_bullet_index": <if action is replace: 1-based index of which bullet in that role/project to replace; if append: null>
+            }}
             }}
         ]
         }}
 
         Rules:
         - Escape double quotes inside strings with backslash. No newlines inside JSON string values.
-        - 6–8 bullets max
-        - Use strong action verbs
-        - Prefer quantified impact when possible
-        - Align bullets tightly to the job description
-        - Do NOT invent experience
+        - 6–8 bullets max. Map each to a real section/role or project from the resume; do not invent sections.
+        - Use strong action verbs. Prefer quantified impact when possible. Align bullets tightly to the job description. Do NOT invent experience.
+        - placement.role_or_project must match the resume exactly (e.g. "Zulily, Full Stack Software Engineer (Vendor Team) – Seattle, WA | Mar 2022 – Dec 2023" or the project name under KEY PROJECTS).
+        - Use "replace" when a tailored bullet is a better fit than an existing bullet in that role; use "append" when adding to a role/project that has few bullets or when the bullet is additive. replace_bullet_index is 1-based (1 = first bullet under that role/project).
 
         JOB DESCRIPTION:
         {job_text}
@@ -88,7 +93,7 @@ def main():
 
     msg = client.messages.create(
         model="claude-3-haiku-20240307",
-        max_tokens=900,
+        max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )
 
