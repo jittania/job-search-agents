@@ -110,21 +110,33 @@ def main():
 
         # --- 1. Archive ---
         if company_from_sheet:
-            print(f"\n⬇️ Row {idx}: archiving {company_from_sheet} | {url}")
-            subprocess.run(
+            print(f"\n⬇️  Row {idx}: populating {company_from_sheet} | {url}")
+            result = subprocess.run(
                 ["python", str(ARCHIVE_SCRIPT), company_from_sheet, url, date_applied_iso],
-                check=True,
+                capture_output=True,
+                text=True,
             )
+            if result.returncode == 2 or "POSTING_NOT_FOUND" in (result.stdout or "") + (result.stderr or ""):
+                print(f"  ⚠️ Row {idx} skipped: posting not found.")
+                continue
+            if result.returncode != 0:
+                print(f"  ⚠️ Row {idx} archive failed: {result.stderr or result.stdout}")
+                continue
             company_display = company_from_sheet
             job_dir = DATA_DIR / slugify(company_display) / date_applied_iso
         else:
-            print(f"\n⬇️ Row {idx}: archiving (inferring company) | {url}")
+            print(f"\n⬇️  Row {idx}: populating (inferring company) | {url}")
             result = subprocess.run(
                 ["python", str(ARCHIVE_SCRIPT), url, date_applied_iso],
                 capture_output=True,
                 text=True,
-                check=True,
             )
+            if result.returncode == 2 or "POSTING_NOT_FOUND" in (result.stdout or "") + (result.stderr or ""):
+                print(f"  ⚠️ Row {idx} skipped: posting not found.")
+                continue
+            if result.returncode != 0:
+                print(f"  ⚠️ Row {idx} archive failed: {result.stderr or result.stdout}")
+                continue
             company_display = "Unknown"
             for line in (result.stdout or "").splitlines():
                 if line.startswith("COMPANY: "):

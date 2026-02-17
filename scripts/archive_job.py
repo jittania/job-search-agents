@@ -18,6 +18,30 @@ def clean_text_from_html(html: str) -> str:
     return " ".join(soup.get_text(separator=" ").split())
 
 
+# Exit code 2 = posting not found / unparseable (for batch to skip row)
+POSTING_NOT_FOUND_EXIT = 2
+
+
+def posting_unavailable(response_status: int | None, text: str) -> bool:
+    """True if the page looks like the job is gone or unparseable."""
+    if response_status is not None and 400 <= response_status < 600:
+        return True
+    t = (text or "").strip().lower()
+    if len(t) < 150:
+        return True
+    phrases = (
+        "no longer available",
+        "has been removed",
+        "job has been filled",
+        "page not found",
+        "this job is no longer",
+        "position has been closed",
+        "job not found",
+        "no longer accepting applications",
+    )
+    return any(p in t for p in phrases)
+
+
 def infer_company_from_job_text(job_text: str) -> str:
     """Use Claude to extract the hiring company name from job posting text."""
     load_dotenv()
@@ -52,10 +76,15 @@ def main():
         browser = p.chromium.launch()
         try:
             page = browser.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            response = page.goto(url, wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(3000)
             rendered_html = page.content()
             text = clean_text_from_html(rendered_html)
+
+            status = response.status if response else None
+            if posting_unavailable(status, text):
+                print("POSTING_NOT_FOUND", file=sys.stderr)
+                sys.exit(POSTING_NOT_FOUND_EXIT)
 
             if company_raw is None:
                 company_raw = infer_company_from_job_text(text)

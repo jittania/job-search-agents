@@ -85,13 +85,13 @@ def main():
 
         # Company from sheet if present, else inferred from job description
         if company_from_sheet:
-            print(f"\n⬇️ Archiving row {idx}: {company_from_sheet} | {url} | {date_applied_iso}")
+            print(f"\n⬇️ Populating row {idx}: {company_from_sheet} | {url} | {date_applied_iso}")
             subprocess.run(
                 ["python", str(ARCHIVE_SCRIPT), company_from_sheet, url, date_applied_iso],
                 check=True,
             )
         else:
-            print(f"\n⬇️ Archiving row {idx}: (inferring company from job) | {url} | {date_applied_iso}")
+            print(f"\n⬇️ Populating row {idx}: (inferring company from job) | {url} | {date_applied_iso}")
             result = subprocess.run(
                 ["python", str(ARCHIVE_SCRIPT), url, date_applied_iso],
                 capture_output=True,

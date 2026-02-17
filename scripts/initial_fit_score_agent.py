@@ -32,7 +32,16 @@ def main():
 Return ONLY valid JSON with this exact schema:
 {"fit_score_0_to_100": <number>}
 
-Score from 0 to 100 how well the candidate's resume fits this job. Consider skills, experience level, and relevance. No other fields.
+Score from 0 to 100 how well the candidate's resume fits this job. Be CONSERVATIVE: use the full range and prefer the lower end of a band when uncertain. Most jobs should fall between 25 and 65; reserve high scores for clear, strong matches only.
+
+Rubric:
+- 90-100: Rare. Nearly perfect fit — all must-have requirements clearly met and exceeded; level, focus, and domain align very well; no material gaps.
+- 75-89: Strong fit — all key requirements met; at most minor gaps. Only use when the match is clearly strong.
+- 55-74: Moderate fit — some requirements met but notable gaps in skills, level, or focus. Default here when fit is decent but not clearly strong.
+- 35-54: Weak fit — significant gaps; important requirements missing or mismatched.
+- 0-34: Poor fit — major mismatches in level, skills, or focus; not a realistic match.
+
+Consider: required skills vs resume, experience level (e.g. senior vs mid), role focus (e.g. backend vs fullstack), and industry/domain relevance. When in doubt, score lower. No other fields.
 
 JOB DESCRIPTION:
 """ + job_text[:50000] + """
