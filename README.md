@@ -1,5 +1,9 @@
 ## Daily Usage
 
+```
+source ~/.zshrc && source .venv/bin/activate
+```
+
 **Finding/Isolating Job Postings**
 
 1. Save potential jobs to tracker (links and date columns only)
@@ -10,7 +14,7 @@
 
 1. Batch duplicate base resume with `dupres`
 
-2. Batch generate tailored resume bullets and cover letters (bullets → local JSON; cover letters → Drive .docx) with `genbullets today && gencl today`
+2. Batch generate tailored resume bullets and cover letters (bullets → local JSON; cover letters → Drive .docx) with `genbullets today && gencl today && evalskills`
 
 3. Add company research sources (only for jobs you care about)
    - Create `sources.txt` in job folder
@@ -33,6 +37,8 @@
 - `cleanup` → Deletes `data/<company>/<date>/` folders that no longer have a row in the tracker (e.g. you deleted the row or didn't apply). Use `cleanup --dry-run` to list what would be removed without deleting.
 
 - `fitjob <job_folder>` → Runs Claude fit scoring + keyword extraction on a single archived job folder and writes `fit.json`.
+
+- `evalskills [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your TECHNICAL SKILLS section for that job and writes `skills_recommendations.json` in the job folder (omit/add recommendations tailored to the JD). No argument = today. Single job: `evalskills data/<company>/<date>` overwrites that folder's `skills_recommendations.json`.
 
 - `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for jobs from the tracker sheet for that day (date applied + company), overwriting existing resume_bullets.json if present. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder.
 
@@ -107,6 +113,14 @@
 
 ✅ Designed CLI tooling and shell aliases for repeatable, low-friction daily workflows
 
+✅ Added sheet-based batch commands so genbullets and gencl run only for rows still in the tracker (e.g. after deleting low-fit rows)
+
+✅ Added cleanup command to remove orphan `data/` folders when tracker rows are deleted
+
+✅ Implemented resume bullet placement (section, role/project, replace vs append) and robust LLM JSON parsing (markdown stripping, trailing commas)
+
+✅ Handled "posting not found" in archive pipeline with exit codes so batch jobs skip rows instead of failing
+
 ---
 
 ## Tools
@@ -117,4 +131,7 @@
 - BeautifulSoup — HTML parsing and text extraction
 - Google Sheets API
 - Google Drive API (OAuth for user-quota copies)
+- gspread — Google Sheets Python client for tracker read/write
+- python-docx — generate and upload cover letter .docx files
+- python-dotenv — load `.env` for secrets and config
 - Cursor
