@@ -115,3 +115,4 @@
 - BeautifulSoup — HTML parsing and text extraction
 - Google Sheets API
 - Google Drive API (OAuth for user-quota copies)
+- Cursor
