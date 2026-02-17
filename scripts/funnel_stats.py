@@ -85,7 +85,7 @@ def main():
         lines.append(f"- Median time to outcome: {median_outcome} days\n")
 
     out_path.write_text("".join(lines), encoding="utf-8")
-    print(f"✅ Wrote {out_path}")
+    print(f"\n✅ Wrote {out_path}")
 
 
 if __name__ == "__main__":

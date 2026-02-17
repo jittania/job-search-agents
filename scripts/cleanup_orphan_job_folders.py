@@ -1,22 +1,21 @@
-"""Batch: generate resume_bullets.json for job folders for a given day (default today) from the tracker sheet. Skips folders that already have resume_bullets.json."""
+"""Delete data/<company>/<date>/ folders that no longer have a row in the tracker sheet (e.g. you deleted the row or didn't apply)."""
 import os
-import subprocess
+import re
+import shutil
 import sys
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 import gspread
 from dotenv import load_dotenv
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-BULLETS_SCRIPT = SCRIPT_DIR / "generate_bullets_agent.py"
 DATA_DIR = Path("data")
-OUTPUT_FILE = "resume_bullets.json"
 DATE_APPLIED_HEADER = "date applied"
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def slugify(s: str) -> str:
-    return "".join(c.lower() if c.isalnum() else "-" for c in s).strip("-")
+    return "".join(c.lower() if c.isalnum() else "-" for c in (s or "").strip()).strip("-")
 
 
 def parse_date_applied(raw: str) -> str | None:
@@ -49,29 +48,10 @@ def parse_date_applied(raw: str) -> str | None:
     return None
 
 
-def is_job_dir_path(arg: str) -> bool:
-    p = Path(arg).resolve()
-    return p.is_dir() and (p / "job.txt").exists()
-
-
 def main():
-    # Single job path: genbullets data/costco/2026-02-10 → overwrites if present
-    if len(sys.argv) == 2 and is_job_dir_path(sys.argv[1]):
-        job_dir = Path(sys.argv[1]).resolve()
-        print(f"📋 Bullets (single): {job_dir}")
-        subprocess.run(["python", str(BULLETS_SCRIPT), str(job_dir)], check=True)
-        return
-
-    day = date.today().isoformat()
-    if len(sys.argv) == 2:
-        arg = sys.argv[1].strip().lower()
-        if arg == "today":
-            day = date.today().isoformat()
-        else:
-            day = arg  # expect YYYY-MM-DD
-
-    if not DATA_DIR.exists():
-        raise SystemExit("Missing data/ directory.")
+    dry_run = "--dry-run" in sys.argv or "-n" in sys.argv
+    if dry_run:
+        print("(dry run — no folders will be deleted)\n")
 
     load_dotenv()
     sa_json = os.environ.get("GOOGLE_SA_JSON", "").strip()
@@ -85,36 +65,43 @@ def main():
     company_col = col.get("company")
     if not date_applied_col or not company_col:
         raise SystemExit("Sheet must have columns: date applied, company.")
+
     rows = sh.get_all_values()[1:]
-    target_dirs = []
+    keep = set()
     for row in rows:
         date_raw = (row[date_applied_col - 1] or "").strip() if date_applied_col <= len(row) else ""
         date_iso = parse_date_applied(date_raw)
-        if date_iso != day:
+        if not date_iso:
             continue
         company = (row[company_col - 1] or "").strip() if company_col <= len(row) else ""
         if not company:
             continue
-        job_dir = DATA_DIR / slugify(company) / date_iso
-        if not (job_dir / "job.txt").exists():
-            continue
-        target_dirs.append(job_dir)
+        keep.add((slugify(company), date_iso))
 
-    wrote = 0
-    skipped = 0
-    for job_dir in target_dirs:
-        out_path = job_dir / OUTPUT_FILE
-        if out_path.exists():
-            skipped += 1
-            continue
-        print(f"📋 Bullets: {job_dir.relative_to(DATA_DIR)}")
-        subprocess.run(
-            ["python", str(BULLETS_SCRIPT), str(job_dir)],
-            check=True,
-        )
-        wrote += 1
+    if not DATA_DIR.exists():
+        print("No data/ directory.")
+        return
 
-    print(f"\n✅ Done. wrote={wrote} skipped={skipped}\n")
+    removed = 0
+    for company_dir in DATA_DIR.iterdir():
+        if not company_dir.is_dir():
+            continue
+        for date_dir in company_dir.iterdir():
+            if not date_dir.is_dir() or not DATE_PATTERN.match(date_dir.name):
+                continue
+            key = (company_dir.name, date_dir.name)
+            if key in keep:
+                continue
+            path = company_dir / date_dir.name
+            print(f"  {'Would remove' if dry_run else 'Removing'}: {path.relative_to(DATA_DIR)}")
+            if not dry_run:
+                shutil.rmtree(path)
+            removed += 1
+
+    if removed == 0:
+        print("No orphan folders found.")
+    else:
+        print(f"\n✅ {'Would remove' if dry_run else 'Removed'} {removed} folder(s).")
 
 
 if __name__ == "__main__":

@@ -111,7 +111,7 @@ def main():
         )
 
     out_path.write_text("".join(lines), encoding="utf-8")
-    print(f"✅ Wrote {out_path} ({len(followups)} jobs)")
+    print(f"\n✅ Wrote {out_path} ({len(followups)} jobs)")
 
 
 if __name__ == "__main__":

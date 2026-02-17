@@ -181,11 +181,11 @@ def main():
         files = resp.get("files", [])
         if files:
             drive.files().update(fileId=files[0]["id"], media_body=media).execute()
-            print(f"✅ Updated {name}\n")
+            print(f"\n✅ Updated {name}\n")
         else:
             body = {"name": name, "parents": [folder_id]}
             drive.files().create(body=body, media_body=media, fields="id").execute()
-            print(f"✅ Created {name}\n")
+            print(f"\n✅ Created {name}\n")
         return
 
     # Batch path: by date (today or YYYY-MM-DD)

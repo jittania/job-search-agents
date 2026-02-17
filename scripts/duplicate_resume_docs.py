@@ -184,7 +184,7 @@ def main():
                 supportsAllDrives=True,
             ).execute()
             new_id = new_file.get("id")
-            print(f"✅ {name}  (id={new_id})")
+            print(f"\n✅ {name}  (id={new_id})")
         except Exception as e:
             err_str = str(e)
             if "404" in err_str and folder_id in err_str:
