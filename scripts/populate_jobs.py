@@ -16,6 +16,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ARCHIVE_SCRIPT = SCRIPT_DIR / "archive_job.py"
 EXTRACT_METADATA_SCRIPT = SCRIPT_DIR / "extract_job_metadata.py"
 INITIAL_FIT_SCRIPT = SCRIPT_DIR / "initial_fit_score_agent.py"
+CLEARANCE_CHECK_SCRIPT = SCRIPT_DIR / "check_security_clearance.py"
 DATA_DIR = Path("data")
 
 DATE_APPLIED_HEADER = "date applied"
@@ -155,6 +156,20 @@ def main():
             job_dir = DATA_DIR / slugify(company_for_folder or "unknown") / date_applied_iso
         if not (job_dir / "job.txt").exists():
             print(f"  ⚠️ No job.txt at {job_dir}; skipping metadata and fit score.")
+            ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
+            continue
+
+        # --- 1b. Skip if job requires security clearance ---
+        result = subprocess.run(
+            ["python", str(CLEARANCE_CHECK_SCRIPT), str(job_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 1:
+            print(f"  ⏭️ Skipping (security clearance required).")
+            if initial_fit_col:
+                ws.update_cell(idx, initial_fit_col, "N/A (clearance)")
             ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
             continue
 

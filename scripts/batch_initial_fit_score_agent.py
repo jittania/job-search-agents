@@ -105,6 +105,11 @@ def main():
             check=False,
         )
 
+        if result.returncode == 3 or "SECURITY_CLEARANCE_REQUIRED" in (result.stderr or ""):
+            print(f"  ⏭️ Skipped (security clearance required)")
+            if initial_fit_col:
+                ws.update_cell(idx, initial_fit_col, "N/A (clearance)")
+            continue
         if result.returncode != 0:
             print(f"  ⚠️ Failed: {result.stderr or result.stdout}")
             continue

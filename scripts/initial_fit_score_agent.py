@@ -7,6 +7,9 @@ from pathlib import Path
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
+# Exit code used when job requires security clearance (caller can skip scoring).
+EXIT_SECURITY_CLEARANCE = 3
+
 
 def main():
     if len(sys.argv) != 2:
@@ -22,6 +25,13 @@ def main():
     if not job_txt.exists():
         print(f"No job.txt at {job_dir}", file=sys.stderr)
         raise SystemExit(2)
+
+    # Skip scoring if job requires security clearance.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from check_security_clearance import requires_security_clearance
+    if requires_security_clearance(job_dir):
+        print("SECURITY_CLEARANCE_REQUIRED", file=sys.stderr)
+        raise SystemExit(EXIT_SECURITY_CLEARANCE)
 
     job_text = job_txt.read_text(encoding="utf-8")
     resume_text = resume_txt.read_text(encoding="utf-8")
