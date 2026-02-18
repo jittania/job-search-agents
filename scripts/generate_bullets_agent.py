@@ -26,6 +26,31 @@ def fix_trailing_commas(json_str: str) -> str:
     return re.sub(r",(\s*[}\]])", r"\1", json_str)
 
 
+def fix_literal_newlines_in_strings(json_str: str) -> str:
+    """Replace unescaped newlines inside double-quoted string values with space (invalid in JSON)."""
+    result = []
+    i = 0
+    in_string = False
+    escape_next = False
+    while i < len(json_str):
+        c = json_str[i]
+        if escape_next:
+            result.append(c)
+            escape_next = False
+        elif c == "\\" and in_string:
+            result.append(c)
+            escape_next = True
+        elif c == '"' and not escape_next:
+            in_string = not in_string
+            result.append(c)
+        elif c == "\n" and in_string:
+            result.append(" ")
+        else:
+            result.append(c)
+        i += 1
+    return "".join(result)
+
+
 def parse_bullets_json(raw: str) -> dict:
     """Parse LLM output into a dict; strip markdown and fix common JSON issues."""
     raw = (raw or "").strip()
@@ -39,6 +64,7 @@ def parse_bullets_json(raw: str) -> dict:
         raise ValueError(f"No JSON object found in output (first 200 chars: {raw[:200]!r})")
     json_str = raw[start : end + 1]
     json_str = fix_trailing_commas(json_str)
+    json_str = fix_literal_newlines_in_strings(json_str)
     try:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
@@ -91,18 +117,23 @@ def main():
         {resume_text}
         """.strip()
 
-    msg = client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=1200,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = (msg.content[0].text or "").strip()
-    try:
-        data = parse_bullets_json(raw)
-    except ValueError as e:
-        print(f"Parse error: {e}", file=sys.stderr)
-        raise SystemExit(1)
+    for attempt in range(2):
+        msg = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = (msg.content[0].text or "").strip()
+        try:
+            data = parse_bullets_json(raw)
+            break
+        except ValueError as e:
+            if attempt == 0:
+                print("  Parse failed, retrying once…", file=sys.stderr)
+                prompt = prompt + "\n\nImportant: Return only valid JSON. Inside every string value, escape double quotes with \\ and do not include literal newlines; use \\n for line breaks if needed."
+            else:
+                print(f"Parse error: {e}", file=sys.stderr)
+                raise SystemExit(1)
 
     if "tailored_bullets" not in data or not isinstance(data["tailored_bullets"], list):
         print("Model did not return tailored_bullets array.", file=sys.stderr)
