@@ -1,3 +1,10 @@
+"""
+Generate tailored resume bullets for a single job folder. Writes resume_bullets.json with placement
+(section, role, replace/append) and bullets to add/remove. Single-job entry point; no args or date
+delegates to batch script.
+
+Invoked by: genbullets (batch). Single job: genbullets data/<company>/<date>
+"""
 import json
 import os
 import re

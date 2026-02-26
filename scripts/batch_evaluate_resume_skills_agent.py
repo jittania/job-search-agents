@@ -1,4 +1,9 @@
-"""Batch: generate skills_recommendations.json for job folders for a given day (default today) from the tracker sheet. Overwrites existing file."""
+"""
+Generate skills_recommendations.json for job folders for a given day (default today) from the
+tracker sheet. Overwrites existing file in each folder.
+
+Alias: evalskills [today|YYYY-MM-DD]
+"""
 import os
 import subprocess
 import sys

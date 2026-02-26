@@ -1,4 +1,9 @@
-"""Batch: generate resume_bullets.json for job folders for a given day (default today) from the tracker sheet. Overwrites existing resume_bullets.json."""
+"""
+Generate resume_bullets.json for job folders for a given day (default today) from the tracker sheet.
+Overwrites existing resume_bullets.json in each folder. Runs generate_bullets_agent per row.
+
+Alias: genbullets [today|YYYY-MM-DD]
+"""
 import os
 import subprocess
 import sys

@@ -1,3 +1,9 @@
+"""
+Generate a snapshot of job-search funnel metrics (applications, interviews, offers, timing)
+from the tracker sheet. Writes data/funnel_stats_<YYYY-MM-DD>.md.
+
+Alias: funnelstats
+"""
 import os
 from datetime import date, datetime
 from pathlib import Path

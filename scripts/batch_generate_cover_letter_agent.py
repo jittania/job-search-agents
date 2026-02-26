@@ -1,4 +1,9 @@
-"""Batch: generate cover letters and upload them to the cover letters Google Drive folder as .docx (same naming as dupcl). Skips job dirs that don't have job.txt."""
+"""
+Generate cover letters with Claude and upload them to the cover letters Drive folder as .docx
+(same naming as dupcl). Runs per job folder for a given day (default today). Skips dirs without job.txt.
+
+Alias: gencl [today|YYYY-MM-DD]
+"""
 import io
 import os
 import re

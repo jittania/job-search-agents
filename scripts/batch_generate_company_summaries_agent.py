@@ -1,3 +1,10 @@
+"""
+For each job folder that has sources.txt (URLs), fetch and summarize company/research content
+and write a summary. Default: today's job folders; optional arg: YYYY-MM-DD. Creates or updates
+summary output in each job folder.
+
+Alias: batchsummary [YYYY-MM-DD]
+"""
 import os
 import sys
 from datetime import date

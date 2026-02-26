@@ -1,3 +1,7 @@
+"""
+Minimal test script: call Claude to say hello. Used to verify API key and connectivity.
+No alias.
+"""
 import os
 from anthropic import Anthropic
 

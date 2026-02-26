@@ -1,3 +1,9 @@
+"""
+Run Claude fit scoring and keyword extraction on a single archived job folder.
+Writes fit.json in the job folder. Single-job entry point for fit scoring (distinct from initial_fit_score_agent).
+
+Alias: fitjob <job_folder>
+"""
 import json
 import os
 import sys

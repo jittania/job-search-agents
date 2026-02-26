@@ -1,4 +1,9 @@
-"""Delete data/<company>/<date>/ folders that no longer have a row in the tracker sheet (e.g. you deleted the row or didn't apply)."""
+"""
+Delete data/<company>/<date>/ folders that no longer have a row in the tracker sheet
+(e.g. you deleted the row or didn't apply). Use --dry-run to list would-be-removed folders only.
+
+Alias: cleanup
+"""
 import os
 import re
 import shutil

@@ -1,3 +1,9 @@
+"""
+Generate short hiring-manager outreach messages for archived jobs for a given day (default today).
+Writes hm_outreach.txt in each job folder. Skips folders that already have hm_outreach.txt.
+
+Alias: batchhm [YYYY-MM-DD]
+"""
 import os
 import sys
 from datetime import date

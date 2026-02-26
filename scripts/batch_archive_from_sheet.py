@@ -1,3 +1,10 @@
+"""
+For each tracker row that has a posting link and no archived_at, archive the job
+(Playwright + job.txt, raw.html, job.pdf under data/<company>/<date>/) and set archived_at.
+Does not run metadata or fit score.
+
+Alias: archivejobs
+"""
 import os
 import subprocess
 from datetime import datetime

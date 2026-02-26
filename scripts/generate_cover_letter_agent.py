@@ -1,4 +1,11 @@
+"""
+Generate a cover letter for a single job folder. Writes cover_letter.md (and optionally uploads .docx).
+Single-job entry point. Use --overwrite to replace existing cover_letter.md.
+
+Invoked by: gencl (batch). Single job: gencl data/<company>/<date>
+"""
 import os
+import re
 import sys
 from pathlib import Path
 

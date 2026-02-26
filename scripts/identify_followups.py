@@ -1,3 +1,9 @@
+"""
+Identify applications needing follow-up: rows where DATE OF OUTCOME is empty and date applied
+is at least N days ago. Writes a Markdown report to data/followups_<YYYY-MM-DD>.md.
+
+Alias: followups [N]
+"""
 import os
 import sys
 from datetime import date, datetime
