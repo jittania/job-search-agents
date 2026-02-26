@@ -1,48 +1,65 @@
+# TBD Name: RoleSynth
+*Extracting signals and synthesizing structured job intelligence.*
+
 ## Daily Usage
 
 ```
 source ~/.zshrc && source .venv/bin/activate
 ```
 
-**Finding/Isolating Job Postings**
+### **Finding/Isolating Job Postings**
 
-1. Save potential jobs to tracker (links and date columns only)
+1. Save potential jobs to tracker (links and date columns only).
 
-2. Run one command for new rows: archive + metadata + initial fit score - `populatejobs` (or separately: `archivejobs` then `batchfitscore`)
+2. Just use `archivejobs` for now ~~Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or `batchmetadata` as needed (each prompts: overwrite all or new only).~~
 
-**Applying**
+3. ~~`fitjob <job_folder>` for single-job fit + keyword extraction (`fit.json`).~~
 
-1. Batch duplicate base resume with `dupres`
+### **Applying**
 
-2. Batch generate tailored resume bullets and cover letters (bullets → local JSON; cover letters → Drive .docx) with `genbullets today && gencl today && evalskills`
+1. `dupres` — batch duplicate base resume; `dupcl` — create blank cover letter docs in Drive.
 
-3. Add company research sources (only for jobs you care about)
-   - Create `sources.txt` in job folder
-   - Run: `batchsummary`
+~~2. `genbullets && evalskills && evalintroedu` — tailored resume bullets and skills/intro/education recommendations; then `gencl` — cover letters to Drive~~
 
-4. Generate hiring manager outreach drafts with `batchhm`
+~~3. `batchhm` — hiring manager outreach drafts.~~
 
-5. Identify jobs needing follow-up (every few days) with `followups 10`
+~~4. Add company research: create `sources.txt` in job folder, then `batchsummary`.~~
+
+5. `cleanup` (local data); `cleanupres` (Drive)
+
+6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
+
+7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.
+
+---
+
+## In Progress/Need Re-working
+
+- `batchfitscore`
+- `batchmetadata`
+- `genbullets`
+- `evalskills`
+- `evalintroedu`
+- `gencl`
+- `batchhm`
+- `batchsummary`
+- `cleanup_orphan_drive_resumes`
+- `batch_tech_stack_agent`
+- `fitjob <job_folder>`
 
 ---
 
 ## Local Commands
 
-- `populatejobs` → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for “new rows only.”
+- `archivejobs` → For each tracker row that has a posting link but **no archived_at**: fetches the job page with Playwright, saves `url.txt`, `raw.html`, `job.txt`, and `job.pdf` under `data/<company>/<date>/` (infers company from the page if the sheet didn’t provide it), and writes **archived_at** to the sheet. Does **not** run metadata or fit score—run `batchmetadata` and/or `batchfitscore` afterward if you want those. **Scripts invoked:** `archive_job_agent` (per row without archived_at).
 
-- `archivejobs` → Archive new job postings from tracker only (no metadata or fit score)
+- `batchfitscore` → Fills or overwrites initial fit score (0–100) in the sheet. Prompts: overwrite all or new only. **Scoring is deterministic:** LLM extracts structured requirements only; Python computes subscores from rules (must-have = literal substring of resume text or synonym; no semantic match). Hard assertions: job and resume ≥500 chars or fail; each row logs job_path, job_hash, resume_path, resume_hash and first 300 chars (stderr); self-checks fail if "matched" term not in resume or if product company has HL7/C#/.NET in must_have (wrong job file). Optional: if the sheet has a **job_dir** or **archive_path** column, that path is used for the job folder (unique dir per job); otherwise path is derived from company + date. See `scripts/fit_score_constants.py`. **Scripts invoked:** `initial_fit_score_agent` (per row; it runs `check_security_clearance` before scoring; clearance-required rows get "N/A (clearance)").
 
-- `buildindex` → Generates/refreshes `data/job_index.csv` from the tracker (job_id, company, role title, posting link, archived_at, archive_path).
+- `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists. **Scripts invoked:** (none).
 
-- `cleanup` → Deletes `data/<company>/<date>/` folders that no longer have a row in the tracker (e.g. you deleted the row or didn't apply). Use `cleanup --dry-run` to list what would be removed without deleting.
+- `batchmetadata` → Fills or overwrites metadata (role title, company type, company size bucket, role focus, role level) in the sheet. **Prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Single-job `extract_job_metadata_agent.py` only outputs JSON**—it does not write to the sheet; only popjobs and batchmetadata write metadata to the sheet. **Scripts invoked:** `extract_job_metadata_agent` (per row).
 
-- `fitjob <job_folder>` → Runs Claude fit scoring + keyword extraction on a single archived job folder and writes `fit.json`.
-
-- `evalskills [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your TECHNICAL SKILLS section for that job and writes `skills_recommendations.json` in the job folder (omit/add recommendations tailored to the JD). No argument = today. Single job: `evalskills data/<company>/<date>` overwrites that folder's `skills_recommendations.json`.
-
-- `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for jobs from the tracker sheet for that day (date applied + company), overwriting existing resume_bullets.json if present. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder.
-
-- `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive.
+- **Metadata extraction (extract_job_metadata_agent / batchmetadata):** Company type and company size bucket are derived from **employee count** when the LLM or search finds it (&lt;50→STARTUP, 50–199→STARTUP, 200–999→SCALE-UP, 1000+→SCALE-UP; &gt;200 never STARTUP). If unknown, both default to **UNKNOWN** (no bias to STARTUP or 1000+). Web search uses neutral queries (employee count, headcount, LinkedIn). Add UNKNOWN to your sheet dropdowns for company type and company size bucket.
 
 - `batchsummary` →
 
@@ -71,27 +88,39 @@ source ~/.zshrc && source .venv/bin/activate
         batchsummary 2026-02-09
         ```
 
-- `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists.
+        **Scripts invoked:** (none).
 
-- `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase).
+- `cleanup` → Deletes `data/<company>/<date>/` folders that no longer have a row in the tracker (e.g. you deleted the row or didn't apply). Use `cleanup --dry-run` to list what would be removed without deleting. **Scripts invoked:** (none).
 
-- `dupcl [YYYY-MM-DD]` → For each job applied on that date (default: today), creates a blank Word document and uploads it to the cover letters Drive folder with the same naming: `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>.docx`. Use `gencl` to fill them with AI-generated cover letters.
+- `dupcl [YYYY-MM-DD]` → For each job applied on that date (default: today), creates a blank Word document and uploads it to the cover letters Drive folder with the same naming: `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>_CL.docx`. Use `gencl` to fill them with AI-generated cover letters. **Scripts invoked:** (none).
 
-- `followups [N]` → Identifies applications that need follow-up based on sheet data (includes jobs where `DATE OF OUTCOME` is empty and the applied `DATE` is ≥ N days ago), then writes a Markdown report to `data/followups_<YYYY-MM-DD>.md`.
+- `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase). **Scripts invoked:** (none).
 
-- `funnelstats` → Generates a snapshot of job-search funnel metrics (applications, interviews, offers, timing), then writes `data/funnel_stats_<YYYY-MM-DD>.md`.
+- `evalskills [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your TECHNICAL SKILLS section for that job and writes `skills_recommendations.json` in the job folder (omit/add recommendations tailored to the JD). No argument = today. Single job: `evalskills data/<company>/<date>` overwrites that folder's `skills_recommendations.json`. **Scripts invoked:** `evaluate_resume_skills_agent` (per job).
+
+- `evalintroedu [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your resume INTRO (summary paragraph) and EDUCATION section for relevancy to the job and writes `intro_education_recommendations.json` (suggestions to emphasize, trim, or add; per-education-entry relevance). No argument = today. Single job: `evalintroedu data/<company>/<date>`. **Scripts invoked:** `evaluate_intro_education_agent` (per job).
+
+- `fitjob <job_folder>` → Runs Claude fit scoring + keyword extraction on a single archived job folder and writes `fit.json`. **Scripts invoked:** (none).
+
+- `followups [N]` → Identifies applications that need follow-up based on sheet data (includes jobs where `DATE OF OUTCOME` is empty and the applied `DATE` is ≥ N days ago), then writes a Markdown report to `data/followups_<YYYY-MM-DD>.md`. **Scripts invoked:** (none).
+
+- `funnelstats` → Generates a snapshot of job-search funnel metrics (applications, interviews, offers, timing), then writes `data/funnel_stats_<YYYY-MM-DD>.md`. **Scripts invoked:** (none).
+
+- `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for jobs from the tracker sheet for that day (date applied + company), overwriting existing resume_bullets.json if present. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder. **Scripts invoked:** `generate_bullets_agent` (per job).
+
+- `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
+
+- `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job_agent`, `check_security_clearance`, `extract_job_metadata_agent`, `initial_fit_score_agent` (per new row).
+
+- `techstack [today|YYYY-MM-DD]` → Batch: infers company tech stack (frontend, backend, infra, databases, tools) from the job description and, if available, by inspecting the first URL in `sources.txt` or a URL you pass. Writes `tech_stack.json` in each job folder. Skips rows where APPLIED VIA ≠ "NOT APPLIED YET" and skips folders that already have `tech_stack.json`. Single job: `techstack data/<company>/<date>` or `techstack data/<company>/<date> <url_to_inspect>`. **Scripts invoked:** `tech_stack_agent` (per job).
 
 ---
 
 ## Skills
 
-✅ Proved you can call a real cloud LLM API (Claude) from Python without leaking secrets
-
 ✅ Built a job-ingestion pipeline to archive dynamic web content deterministically (HTML, plaintext, PDF)
 
 ✅ Implemented Google Sheets integration to archive new job postings without duplication
-
-✅ Built a durable job index for downstream automation (`job_index.csv` generated from tracker data)
 
 ✅ Implemented AI-based JD↔resume fit scoring and keyword extraction, producing structured artifacts (`fit.json`)
 
