@@ -1,4 +1,5 @@
 # TBD Name: RoleSynth
+
 *Extracting signals and synthesizing structured job intelligence.*
 
 ## Daily Usage
@@ -25,11 +26,11 @@ source ~/.zshrc && source .venv/bin/activate
 
 ~~4. Add company research: create `sources.txt` in job folder, then `batchsummary`.~~
 
-5. `cleanup` (local data); `cleanupres` (Drive)
+5. `cleanup` (local data); ~~`cleanupres` (Drive)~~
 
 6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
 
-7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.
+~~7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.~~
 
 ---
 
@@ -45,6 +46,7 @@ source ~/.zshrc && source .venv/bin/activate
 - `batchsummary`
 - `cleanup_orphan_drive_resumes`
 - `batch_tech_stack_agent`
+- `techstack data/<company>/<date>`
 - `fitjob <job_folder>`
 
 ---
