@@ -1,6 +1,5 @@
 # TBD Name: RoleSynth
-
-*Extracting signals and synthesizing structured job intelligence.*
+*~ Extracting signals and synthesizing structured job intelligence*
 
 ## Daily Usage
 
@@ -24,14 +23,19 @@ source ~/.zshrc && source .venv/bin/activate
 
 ~~3. `batchhm` — hiring manager outreach drafts.~~
 
-4. `cleanup` (local data); ~~`cleanupres` (Drive)~~
+~~4. Add company research: create `sources.txt` in job folder, then `batchsummary`.~~
 
-5. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
+5. `cleanup` (local data); ~~`cleanupres` (Drive)~~
+
+~~6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.~~
+
+~~7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.~~
 
 ---
 
 ## In Progress/Need Re-working
 
+- Base resume - can this be pulled/read from Drive instead
 - `batchfitscore`
 - `batchmetadata`
 - `genbullets`
@@ -39,22 +43,53 @@ source ~/.zshrc && source .venv/bin/activate
 - `evalintroedu`
 - `gencl`
 - `batchhm`
+- `batchsummary`
 - `cleanup_orphan_drive_resumes`
+- `batch_tech_stack_agent`
 - `fitjob <job_folder>`
 
 ---
 
 ## Local Commands
 
-- `archivejobs` → For each tracker row that has a posting link but **no archived_at**: fetches the job page with Playwright, saves `url.txt`, `raw.html`, `job.txt`, and `job.pdf` under `data/<company>/<date>/` (infers company from the page if the sheet didn’t provide it), and writes **archived_at** to the sheet. Does **not** run metadata or fit score—run `batchmetadata` and/or `batchfitscore` afterward if you want those. **Scripts invoked:** `archive_job_agent` (per row without archived_at).
+- `archivejobs` → Archive new job postings from tracker only (no metadata or fit score). **Scripts invoked:** `archive_job` (per row without archived_at).
 
-- `batchfitscore` → Fills or overwrites initial fit score (0–100) in the sheet. Prompts: overwrite all or new only. **Scoring is deterministic:** LLM extracts structured requirements only; Python computes subscores from rules (must-have = literal substring of resume text or synonym; no semantic match). Hard assertions: job and resume ≥500 chars or fail; each row logs job_path, job_hash, resume_path, resume_hash and first 300 chars (stderr); self-checks fail if "matched" term not in resume or if product company has HL7/C#/.NET in must_have (wrong job file). Optional: if the sheet has a **job_dir** or **archive_path** column, that path is used for the job folder (unique dir per job); otherwise path is derived from company + date. **Scripts invoked:** `initial_fit_score_agent` (per row; it runs `check_security_clearance` before scoring; clearance-required rows get "N/A (clearance)").
+- `batchfitscore` → Fills or overwrites initial fit score (0–100) in the sheet. Prompts: overwrite all or new only. **Scoring is deterministic:** LLM extracts structured requirements only; Python computes subscores from rules (must-have = literal substring of resume text or synonym; no semantic match). Hard assertions: job and resume ≥500 chars or fail; each row logs job_path, job_hash, resume_path, resume_hash and first 300 chars (stderr); self-checks fail if "matched" term not in resume or if product company has HL7/C#/.NET in must_have (wrong job file). Optional: if the sheet has a **job_dir** or **archive_path** column, that path is used for the job folder (unique dir per job); otherwise path is derived from company + date. See `scripts/fit_score_constants.py`. **Scripts invoked:** `initial_fit_score_agent` (per row; it runs `check_security_clearance` before scoring; clearance-required rows get "N/A (clearance)").
 
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists. **Scripts invoked:** (none).
 
-- `batchmetadata` → Fills or overwrites metadata (role title, company type, company size bucket, role focus, role level) in the sheet. **Prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Single-job `extract_job_metadata_agent.py` only outputs JSON**—it does not write to the sheet; only popjobs and batchmetadata write metadata to the sheet. **Scripts invoked:** `extract_job_metadata_agent` (per row).
+- `batchmetadata` → Fills or overwrites metadata (role title, company type, company size bucket, role focus, role level) in the sheet. **Prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Single-job `extract_job_metadata.py` only outputs JSON**—it does not write to the sheet; only popjobs and batchmetadata write metadata to the sheet. **Scripts invoked:** `extract_job_metadata` (per row).
 
-- **Metadata extraction (extract_job_metadata_agent / batchmetadata):** Company type and company size bucket are derived from **employee count** when the LLM or search finds it (&lt;50→STARTUP, 50–199→STARTUP, 200–999→SCALE-UP, 1000+→SCALE-UP; &gt;200 never STARTUP). If unknown, both default to **UNKNOWN** (no bias to STARTUP or 1000+). Web search uses neutral queries (employee count, headcount, LinkedIn). Add UNKNOWN to your sheet dropdowns for company type and company size bucket.
+- **Metadata extraction (extract_job_metadata / batchmetadata):** Company type and company size bucket are derived from **employee count** when the LLM or search finds it (&lt;50→STARTUP, 50–199→STARTUP, 200–999→SCALE-UP, 1000+→SCALE-UP; &gt;200 never STARTUP). If unknown, both default to **UNKNOWN** (no bias to STARTUP or 1000+). Web search uses neutral queries (employee count, headcount, LinkedIn). Add UNKNOWN to your sheet dropdowns for company type and company size bucket.
+
+- `batchsummary` →
+
+        For each new job you want summarized, create sources.txt
+
+        ```
+        touch data/costco/2026-02-09/sources.txt
+        ```
+
+        Put URLs in it (one per line), e.g.
+
+        ```
+        https://www.costco.com/
+        https://careers.costco.com/
+        ```
+
+        Run batch for today
+
+        ```
+        batchsummary
+        ```
+
+        Or for a specific date folder:
+
+        ```
+        batchsummary 2026-02-09
+        ```
+
+        **Scripts invoked:** (none).
 
 - `cleanup` → Deletes `data/<company>/<date>/` folders that no longer have a row in the tracker (e.g. you deleted the row or didn't apply). Use `cleanup --dry-run` to list what would be removed without deleting. **Scripts invoked:** (none).
 
@@ -76,7 +111,9 @@ source ~/.zshrc && source .venv/bin/activate
 
 - `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
 
-- `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job_agent`, `check_security_clearance`, `extract_job_metadata_agent`, `initial_fit_score_agent` (per new row).
+- `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job`, `check_security_clearance`, `extract_job_metadata`, `initial_fit_score_agent` (per new row).
+
+- `techstack [today|YYYY-MM-DD]` → Batch: infers company tech stack (frontend, backend, infra, databases, tools) from the job description and, if available, by inspecting the first URL in `sources.txt` or a URL you pass. Writes `tech_stack.json` in each job folder. Skips rows where APPLIED VIA ≠ "NOT APPLIED YET" and skips folders that already have `tech_stack.json`. Single job: `techstack data/<company>/<date>` or `techstack data/<company>/<date> <url_to_inspect>`. **Scripts invoked:** `tech_stack_agent` (per job).
 
 ---
 
