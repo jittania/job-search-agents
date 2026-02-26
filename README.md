@@ -1,5 +1,4 @@
 # TBD Name: RoleSynth
-*~ Extracting signals and synthesizing structured job intelligence*
 
 ## Daily Usage
 
