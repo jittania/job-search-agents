@@ -30,8 +30,6 @@ source ~/.zshrc && source .venv/bin/activate
 
 6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
 
-~~7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.~~
-
 ---
 
 ## In Progress/Need Re-working
@@ -45,8 +43,6 @@ source ~/.zshrc && source .venv/bin/activate
 - `batchhm`
 - `batchsummary`
 - `cleanup_orphan_drive_resumes`
-- `batch_tech_stack_agent`
-- `techstack data/<company>/<date>`
 - `fitjob <job_folder>`
 
 ---
@@ -55,7 +51,7 @@ source ~/.zshrc && source .venv/bin/activate
 
 - `archivejobs` → For each tracker row that has a posting link but **no archived_at**: fetches the job page with Playwright, saves `url.txt`, `raw.html`, `job.txt`, and `job.pdf` under `data/<company>/<date>/` (infers company from the page if the sheet didn’t provide it), and writes **archived_at** to the sheet. Does **not** run metadata or fit score—run `batchmetadata` and/or `batchfitscore` afterward if you want those. **Scripts invoked:** `archive_job_agent` (per row without archived_at).
 
-- `batchfitscore` → Fills or overwrites initial fit score (0–100) in the sheet. Prompts: overwrite all or new only. **Scoring is deterministic:** LLM extracts structured requirements only; Python computes subscores from rules (must-have = literal substring of resume text or synonym; no semantic match). Hard assertions: job and resume ≥500 chars or fail; each row logs job_path, job_hash, resume_path, resume_hash and first 300 chars (stderr); self-checks fail if "matched" term not in resume or if product company has HL7/C#/.NET in must_have (wrong job file). Optional: if the sheet has a **job_dir** or **archive_path** column, that path is used for the job folder (unique dir per job); otherwise path is derived from company + date. See `scripts/fit_score_constants.py`. **Scripts invoked:** `initial_fit_score_agent` (per row; it runs `check_security_clearance` before scoring; clearance-required rows get "N/A (clearance)").
+- `batchfitscore` → Fills or overwrites initial fit score (0–100) in the sheet. Prompts: overwrite all or new only. **Scoring is deterministic:** LLM extracts structured requirements only; Python computes subscores from rules (must-have = literal substring of resume text or synonym; no semantic match). Hard assertions: job and resume ≥500 chars or fail; each row logs job_path, job_hash, resume_path, resume_hash and first 300 chars (stderr); self-checks fail if "matched" term not in resume or if product company has HL7/C#/.NET in must_have (wrong job file). Optional: if the sheet has a **job_dir** or **archive_path** column, that path is used for the job folder (unique dir per job); otherwise path is derived from company + date. **Scripts invoked:** `initial_fit_score_agent` (per row; it runs `check_security_clearance` before scoring; clearance-required rows get "N/A (clearance)").
 
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists. **Scripts invoked:** (none).
 
@@ -113,8 +109,6 @@ source ~/.zshrc && source .venv/bin/activate
 - `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
 
 - `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job_agent`, `check_security_clearance`, `extract_job_metadata_agent`, `initial_fit_score_agent` (per new row).
-
-- `techstack [today|YYYY-MM-DD]` → Batch: infers company tech stack (frontend, backend, infra, databases, tools) from the job description and, if available, by inspecting the first URL in `sources.txt` or a URL you pass. Writes `tech_stack.json` in each job folder. Skips rows where APPLIED VIA ≠ "NOT APPLIED YET" and skips folders that already have `tech_stack.json`. Single job: `techstack data/<company>/<date>` or `techstack data/<company>/<date> <url_to_inspect>`. **Scripts invoked:** `tech_stack_agent` (per job).
 
 ---
 
