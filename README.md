@@ -24,11 +24,9 @@ source ~/.zshrc && source .venv/bin/activate
 
 ~~3. `batchhm` — hiring manager outreach drafts.~~
 
-~~4. Add company research: create `sources.txt` in job folder, then `batchsummary`.~~
+4. `cleanup` (local data); ~~`cleanupres` (Drive)~~
 
-5. `cleanup` (local data); ~~`cleanupres` (Drive)~~
-
-6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
+5. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
 
 ---
 
@@ -41,7 +39,6 @@ source ~/.zshrc && source .venv/bin/activate
 - `evalintroedu`
 - `gencl`
 - `batchhm`
-- `batchsummary`
 - `cleanup_orphan_drive_resumes`
 - `fitjob <job_folder>`
 
@@ -58,35 +55,6 @@ source ~/.zshrc && source .venv/bin/activate
 - `batchmetadata` → Fills or overwrites metadata (role title, company type, company size bucket, role focus, role level) in the sheet. **Prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Single-job `extract_job_metadata_agent.py` only outputs JSON**—it does not write to the sheet; only popjobs and batchmetadata write metadata to the sheet. **Scripts invoked:** `extract_job_metadata_agent` (per row).
 
 - **Metadata extraction (extract_job_metadata_agent / batchmetadata):** Company type and company size bucket are derived from **employee count** when the LLM or search finds it (&lt;50→STARTUP, 50–199→STARTUP, 200–999→SCALE-UP, 1000+→SCALE-UP; &gt;200 never STARTUP). If unknown, both default to **UNKNOWN** (no bias to STARTUP or 1000+). Web search uses neutral queries (employee count, headcount, LinkedIn). Add UNKNOWN to your sheet dropdowns for company type and company size bucket.
-
-- `batchsummary` →
-
-        For each new job you want summarized, create sources.txt
-
-        ```
-        touch data/costco/2026-02-09/sources.txt
-        ```
-
-        Put URLs in it (one per line), e.g.
-
-        ```
-        https://www.costco.com/
-        https://careers.costco.com/
-        ```
-
-        Run batch for today
-
-        ```
-        batchsummary
-        ```
-
-        Or for a specific date folder:
-
-        ```
-        batchsummary 2026-02-09
-        ```
-
-        **Scripts invoked:** (none).
 
 - `cleanup` → Deletes `data/<company>/<date>/` folders that no longer have a row in the tracker (e.g. you deleted the row or didn't apply). Use `cleanup --dry-run` to list what would be removed without deleting. **Scripts invoked:** (none).
 
