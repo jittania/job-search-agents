@@ -13,7 +13,7 @@ from pathlib import Path
 import gspread
 from dotenv import load_dotenv
 
-ARCHIVE_SCRIPT = Path("scripts/archive_job.py")
+ARCHIVE_SCRIPT = Path("scripts/archive_job_agent.py")
 
 # Header name for the "date applied" column (used for folder name under data/company/)
 DATE_APPLIED_HEADER = "date applied"
