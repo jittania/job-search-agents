@@ -1,17 +1,11 @@
 """
-For each job applied on a given date (default: today) from the tracker sheet, copy the resume template
-Google Doc into the Drive folder "Company Specific" and rename the copy to:
+For each job applied on a given date (default: today) from the tracker sheet, copy the resume
+template Google Doc into the Drive folder "Company Specific" and rename to
+YYYY-MM-DD__JittaniaSmith_<CompanyCamel>_<PositionCamel>. If a file with that name exists, uses _v2, _v3, etc.
+Uses OAuth (your account) for Drive quota. Requires GOOGLE_SA_JSON, SHEET_ID, WORKSHEET_NAME,
+DRIVE_TEMPLATE_DOC_ID, DRIVE_COMPANY_SPECIFIC_FOLDER_ID, and credentials.json (or DRIVE_CREDENTIALS_JSON).
 
-  <date YYYY-MM-DD>__JittaniaSmith_<company camelCase>_<position camelCase>
-
-Uses OAuth (your Google account) for Drive so copies count against your 2 TB quota,
-not the service account's tiny quota.
-
-Requires:
-  - GOOGLE_SA_JSON, SHEET_ID, WORKSHEET_NAME (for the tracker sheet)
-  - DRIVE_TEMPLATE_DOC_ID, DRIVE_COMPANY_SPECIFIC_FOLDER_ID (in .env)
-  - OAuth: credentials.json (Desktop app client secrets from GCP) in project root,
-    or DRIVE_CREDENTIALS_JSON path. First run opens browser to sign in; token saved to .drive_oauth_token.json
+Alias: dupres [YYYY-MM-DD]
 """
 import os
 import re
@@ -135,6 +129,39 @@ def main():
             "Get it from the folder URL when opened in Drive."
         )
 
+    def choose_copy_name(drive_service, parent_id: str, base_name: str) -> str:
+        """If base_name already exists in folder, return base_name_v2, _v3, etc.; else return base_name."""
+        # Escape single quotes in name for Drive query (name contains ' -> \')
+        safe_name = (base_name or "").replace("\\", "\\\\").replace("'", "\\'")
+        query = f"'{parent_id}' in parents and name='{safe_name}' and trashed=false"
+        try:
+            existing = (
+                drive_service.files()
+                .list(q=query, spaces="drive", fields="files(id,name)", supportsAllDrives=True)
+                .execute()
+            )
+        except Exception:
+            return base_name
+        files = existing.get("files") or []
+        if not files:
+            return base_name
+        # One or more files with this name exist; use _v2, _v3, ...
+        for n in range(2, 1000):
+            candidate = f"{base_name}_v{n}"
+            safe_candidate = candidate.replace("\\", "\\\\").replace("'", "\\'")
+            q2 = f"'{parent_id}' in parents and name='{safe_candidate}' and trashed=false"
+            try:
+                r = (
+                    drive_service.files()
+                    .list(q=q2, spaces="drive", fields="files(id)", supportsAllDrives=True)
+                    .execute()
+                )
+            except Exception:
+                return candidate
+            if not (r.get("files")):
+                return candidate
+        return f"{base_name}_v2"  # fallback
+
     gc = gspread.service_account(filename=sa_json)
     sh = gc.open_by_key(sheet_id)
     ws = sh.worksheet(worksheet_name)
@@ -174,7 +201,8 @@ def main():
     for date_iso, company, position in today_rows:
         company_camel = to_camel_case(company)
         position_camel = to_camel_case(position)
-        name = f"{date_iso}__JittaniaSmith_{company_camel}_{position_camel}"
+        base_name = f"{date_iso}__JittaniaSmith_{company_camel}_{position_camel}"
+        name = choose_copy_name(drive, folder_id, base_name)
 
         body = {"name": name, "parents": [folder_id]}
         try:

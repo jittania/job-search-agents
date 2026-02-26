@@ -1,10 +1,10 @@
 """
 For each job applied on a given date (default: today) from the tracker sheet, create a blank
-Word document and upload it to a Google Drive folder, named:
+Word document and upload it to the cover letters Drive folder, named
+YYYY-MM-DD__JittaniaSmith_<CompanyCamel>_<PositionCamel>_CL.docx. Use gencl to fill with AI text.
+Requires same OAuth/sheet setup as dupres and DRIVE_COVER_LETTERS_FOLDER_ID.
 
-  <date YYYY-MM-DD>__JittaniaSmith_<company camelCase>_<position camelCase>.docx
-
-Uses the same OAuth and sheet setup as duplicate_resume_docs. Requires DRIVE_COVER_LETTERS_FOLDER_ID in .env.
+Alias: dupcl [YYYY-MM-DD]
 """
 import io
 import os
@@ -161,7 +161,7 @@ def main():
     for date_iso, company, position in target_rows:
         company_camel = to_camel_case(company)
         position_camel = to_camel_case(position)
-        name = f"{date_iso}__JittaniaSmith_{company_camel}_{position_camel}.docx"
+        name = f"{date_iso}__JittaniaSmith_{company_camel}_{position_camel}_CL.docx"
 
         body = {"name": name, "parents": [folder_id]}
         media = MediaIoBaseUpload(io.BytesIO(docx_bytes), mimetype=DOCX_MIME, resumable=False)
