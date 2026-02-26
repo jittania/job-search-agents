@@ -27,8 +27,8 @@ Every item from the README **Tools** section is listed below with explicit, cite
 
 - **Purpose:** All LLM-based behavior (extraction, scoring, generation).
 - **Where used:**  
-  - **archive_job.py** — Claude is used once per job to infer company name from job text when not provided (Haiku, short prompt).  
-  - **extract_job_metadata.py** — Claude returns structured JSON (role_title, company_type, company_size_bucket, role_focus, role_level) from job description.  
+  - **archive_job_agent.py** — Claude is used once per job to infer company name from job text when not provided (Haiku, short prompt).
+  - **extract_job_metadata_agent.py** — Claude returns structured JSON (role_title, company_type, company_size_bucket, role_focus, role_level) from job description.
   - **initial_fit_score_agent.py** — Claude scores resume–job fit 0–100 with a conservative rubric and returns `fit_score_0_to_100`.  
   - **analyze_fit_agent.py** — Deeper fit analysis + keyword extraction, writes `fit.json`.  
   - **generate_bullets_agent.py** — Claude generates tailored resume bullets (with placement: section, role/project, replace vs append) and returns JSON; output is written to `resume_bullets.json`.  
@@ -43,7 +43,7 @@ Every item from the README **Tools** section is listed below with explicit, cite
 
 - **Purpose:** Headless browser automation for JS-rendered job pages and PDF capture.
 - **Where used:**  
-  - **archive_job.py** — `sync_playwright()`, Chromium launch, `page.goto(url)`, `page.wait_for_timeout`, `page.content()` to get fully rendered HTML; then **BeautifulSoup** is used to strip scripts/styles and extract plain text into `job.txt`. Same script uses `page.pdf()` to save a Letter-format PDF of the job page to `job.pdf` in the job folder (with print_background=True). Response status is checked to detect 4xx/5xx and trigger "posting not found" exit code for batch.  
+  - **archive_job_agent.py** — `sync_playwright()`, Chromium launch, `page.goto(url)`, `page.wait_for_timeout`, `page.content()` to get fully rendered HTML; then **BeautifulSoup** is used to strip scripts/styles and extract plain text into `job.txt`. Same script uses `page.pdf()` to save a Letter-format PDF of the job page to `job.pdf` in the job folder (with print_background=True). Response status is checked to detect 4xx/5xx and trigger "posting not found" exit code for batch.  
   - **batch_generate_company_summaries_agent.py** — Playwright is used to load and render URLs listed in each job folder’s `sources.txt`; the rendered HTML is then cleaned with BeautifulSoup for text extraction before being sent to Claude for summarization.  
   So: Playwright is used for (1) fetching and rendering job posting URLs, (2) saving job pages as PDFs, and (3) fetching external URLs for company research.
 
@@ -53,7 +53,7 @@ Every item from the README **Tools** section is listed below with explicit, cite
 
 - **Purpose:** HTML parsing and text extraction from raw or rendered HTML.
 - **Where used:**  
-  - **archive_job.py** — `BeautifulSoup(html, "html.parser")`; scripts, styles, and noscript are removed, then `get_text(separator=" ")` is used to produce clean plain text written to `job.txt`.  
+  - **archive_job_agent.py** — `BeautifulSoup(html, "html.parser")`; scripts, styles, and noscript are removed, then `get_text(separator=" ")` is used to produce clean plain text written to `job.txt`.  
   - **batch_generate_company_summaries_agent.py** — Same pattern: BeautifulSoup parses HTML fetched via Playwright for each URL in `sources.txt`, strips script/style, and extracts text for Claude.  
   So: BeautifulSoup is used wherever we need to turn HTML (from Playwright or otherwise) into clean text for storage or for LLM input.
 
@@ -80,7 +80,7 @@ Every item from the README **Tools** section is listed below with explicit, cite
 ### gspread
 
 - **Purpose:** Python client for the Google Sheets API; used for all tracker read/write.
-- **Where used:** Every script that touches the tracker uses `gspread`: typically `gspread.service_account(filename=sa_json)` then `gc.open_by_key(sheet_id).worksheet(worksheet_name)`, then `get_all_values()`, `row_values(1)` for headers, `update_cell()`, etc. Used in: **populate_jobs.py**, **batch_archive_from_sheet.py**, **batch_initial_fit_score_agent.py**, **batch_generate_bullets_agent.py**, **batch_generate_cover_letter_agent.py**, **duplicate_resume_docs.py**, **duplicate_cover_letter_docs.py**, **cleanup_orphan_job_folders.py**, **identify_followups.py**, **funnel_stats.py**, **build_job_index_from_sheet.py**. So **gspread** is the concrete library that implements "Google Sheets API" usage for tracker read/write throughout the project.
+- **Where used:** Every script that touches the tracker uses `gspread`: typically `gspread.service_account(filename=sa_json)` then `gc.open_by_key(sheet_id).worksheet(worksheet_name)`, then `get_all_values()`, `row_values(1)` for headers, `update_cell()`, etc. Used in: **populate_jobs.py**, **batch_archive_from_sheet.py**, **batch_initial_fit_score_agent.py**, **batch_generate_bullets_agent.py**, **batch_generate_cover_letter_agent.py**, **duplicate_resume_docs.py**, **duplicate_cover_letter_docs.py**, **cleanup_orphan_job_folders.py**, **identify_followups.py**, **funnel_stats.py**. So **gspread** is the concrete library that implements "Google Sheets API" usage for tracker read/write throughout the project.
 
 ---
 
@@ -97,7 +97,7 @@ Every item from the README **Tools** section is listed below with explicit, cite
 ### python-dotenv
 
 - **Purpose:** Load environment variables from a `.env` file so API keys and config are not hardcoded.
-- **Where used:** Essentially every script that needs config or secrets calls `load_dotenv()` (from **python-dotenv**) and then reads `os.environ["ANTHROPIC_API_KEY"]`, `os.environ["GOOGLE_SA_JSON"]`, `os.environ["SHEET_ID"]`, `os.environ["WORKSHEET_NAME"]`, `os.environ.get("DRIVE_COVER_LETTERS_FOLDER_ID")`, `os.environ.get("DRIVE_COMPANY_SPECIFIC_FOLDER_ID")`, `os.environ.get("DRIVE_CREDENTIALS_JSON")`, etc. Used in: **archive_job.py**, **populate_jobs.py**, **batch_archive_from_sheet.py**, **extract_job_metadata.py**, **initial_fit_score_agent.py**, **batch_initial_fit_score_agent.py**, **generate_bullets_agent.py**, **batch_generate_bullets_agent.py**, **batch_generate_cover_letter_agent.py**, **generate_cover_letter_agent.py**, **duplicate_resume_docs.py**, **duplicate_cover_letter_docs.py**, **cleanup_orphan_job_folders.py**, **identify_followups.py**, **funnel_stats.py**, **build_job_index_from_sheet.py**, **analyze_fit_agent.py**, **batch_generate_company_summaries_agent.py**, **batch_generate_hm_outreach_agent.py**. So **python-dotenv** is used to load `.env` for secrets and config in every script that touches APIs or sheet/Drive IDs.
+- **Where used:** Essentially every script that needs config or secrets calls `load_dotenv()` (from **python-dotenv**) and then reads `os.environ["ANTHROPIC_API_KEY"]`, `os.environ["GOOGLE_SA_JSON"]`, `os.environ["SHEET_ID"]`, `os.environ["WORKSHEET_NAME"]`, `os.environ.get("DRIVE_COVER_LETTERS_FOLDER_ID")`, `os.environ.get("DRIVE_COMPANY_SPECIFIC_FOLDER_ID")`, `os.environ.get("DRIVE_CREDENTIALS_JSON")`, etc. Used in: **archive_job_agent.py**, **populate_jobs.py**, **batch_archive_from_sheet.py**, **extract_job_metadata_agent.py**, **initial_fit_score_agent.py**, **batch_initial_fit_score_agent.py**, **generate_bullets_agent.py**, **batch_generate_bullets_agent.py**, **batch_generate_cover_letter_agent.py**, **generate_cover_letter_agent.py**, **duplicate_resume_docs.py**, **duplicate_cover_letter_docs.py**, **cleanup_orphan_job_folders.py**, **identify_followups.py**, **funnel_stats.py**, **analyze_fit_agent.py**, **batch_generate_company_summaries_agent.py**, **batch_generate_hm_outreach_agent.py**. So **python-dotenv** is used to load `.env` for secrets and config in every script that touches APIs or sheet/Drive IDs.
 
 ---
 
@@ -110,7 +110,7 @@ Every item from the README **Tools** section is listed below with explicit, cite
 
 ## Optional extra detail for ChatGPT
 
-- **Structured outputs:** The pipeline produces and consumes JSON (e.g. `fit.json`, `resume_bullets.json` with placement, metadata from extract_job_metadata). LLM JSON is often wrapped in markdown or has trailing commas; the code strips markdown code fences and normalizes trailing commas before `json.loads`.
+- **Structured outputs:** The pipeline produces and consumes JSON (e.g. `fit.json`, `resume_bullets.json` with placement, metadata from extract_job_metadata_agent). LLM JSON is often wrapped in markdown or has trailing commas; the code strips markdown code fences and normalizes trailing commas before `json.loads`.
 - **Batch vs single-job:** Many commands support both "batch by date" (e.g. all jobs for today from the sheet) and "single job" (e.g. `genbullets data/company/2026-02-16`). Batch behavior is driven by the sheet (date applied + company); cleanup is driven by the set of (company, date) still present in the sheet.
 - **Exit codes:** The archive script exits with code 2 when the posting is unavailable (e.g. 4xx/5xx or "job no longer available" text); the populate script catches this and skips the row instead of failing the whole run.
 
