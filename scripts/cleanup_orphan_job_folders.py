@@ -88,10 +88,10 @@ def main():
         return
 
     removed = 0
-    for company_dir in DATA_DIR.iterdir():
+    for company_dir in sorted(DATA_DIR.iterdir()):
         if not company_dir.is_dir():
             continue
-        for date_dir in company_dir.iterdir():
+        for date_dir in sorted(company_dir.iterdir()):
             if not date_dir.is_dir() or not DATE_PATTERN.match(date_dir.name):
                 continue
             key = (company_dir.name, date_dir.name)
@@ -102,6 +102,23 @@ def main():
             if not dry_run:
                 shutil.rmtree(path)
             removed += 1
+
+    # Remove company directories that are now empty (no date subdirs left).
+    for company_dir in sorted(DATA_DIR.iterdir()):
+        if not company_dir.is_dir():
+            continue
+        try:
+            subs = list(company_dir.iterdir())
+        except OSError:
+            continue
+        # Only remove if empty or only non-date items (e.g. no YYYY-MM-DD subdirs).
+        date_subdirs = [s for s in subs if s.is_dir() and DATE_PATTERN.match(s.name)]
+        if date_subdirs:
+            continue
+        print(f"  {'Would remove' if dry_run else 'Removing'} (empty company dir): {company_dir.relative_to(DATA_DIR)}")
+        if not dry_run:
+            shutil.rmtree(company_dir)
+        removed += 1
 
     if removed == 0:
         print("No orphan folders found.")
