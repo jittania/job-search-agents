@@ -1,7 +1,7 @@
 # Direct dependencies only; pip installs transitives automatically
 anthropic>=0.77.1
 beautifulsoup4>=4.14.3
-duckduckgo_search>=8.1.1
+ddgs>=9.10.0
 google-api-python-client>=2.149.0
 google-auth>=2.48.0
 google-auth-oauthlib>=1.2.4

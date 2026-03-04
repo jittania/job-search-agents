@@ -90,7 +90,7 @@ def _search_company_info(company_name: str) -> str:
     if not (company_name or "").strip():
         return ""
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
     except ImportError:
         return ""
     snippets = []
@@ -100,20 +100,20 @@ def _search_company_info(company_name: str) -> str:
         f'"{company_name}" headcount',
     ]
     try:
-        with DDGS() as ddgs:
-            for q in queries:
-                try:
-                    results = list(ddgs.text(q, max_results=4))
-                    for r in results:
-                        if isinstance(r, dict):
-                            body = (r.get("body") or r.get("snippet") or "").strip()
-                            title = (r.get("title") or "").strip()
-                            if body:
-                                snippets.append(f"[{title}] {body}")
-                        elif hasattr(r, "body"):
-                            snippets.append(getattr(r, "body", ""))
-                except Exception:
-                    continue
+        ddgs = DDGS()
+        for q in queries:
+            try:
+                results = ddgs.text(q, max_results=4)
+                for r in results:
+                    if isinstance(r, dict):
+                        body = (r.get("body") or r.get("snippet") or "").strip()
+                        title = (r.get("title") or "").strip()
+                        if body:
+                            snippets.append(f"[{title}] {body}")
+                    elif hasattr(r, "body"):
+                        snippets.append(getattr(r, "body", ""))
+            except Exception:
+                continue
     except Exception:
         return ""
     combined = "\n".join(snippets).strip()
