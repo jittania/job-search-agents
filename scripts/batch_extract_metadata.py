@@ -1,11 +1,11 @@
 """
 Fill or overwrite metadata:
-- ✅ role title
-- ✅ company name
-- company type
-- company size bucket
-- role focus
-- role level
+- ✅ role title - works as expected
+- ✅ company name - works as expected
+- company type - ❌ seems to be defaulting incorrectly to "scale-up" or "unknown" in some cases
+- company size bucket - ❌ having trouble with companies under < 1000
+- role focus -  ❌ defaulting incorrectly to full-stack most of the time
+- role level - ❌ defaulting incorrectly to mid
 in the tracker sheet. Prompts: overwrite all or only populate rows missing metadata (company type empty).
 Uses same job_dir logic as batchfitscore: job_dir/archive_path column or data/<company>/<date>.
 
@@ -145,11 +145,11 @@ EXTERNAL SEARCH RESULTS (use to set employee_count when a number is clearly stat
 
 - "company_name": string, the exact name of the company that is hiring (e.g. "Anthropic", "Google"). One line, no explanation. If unclear, "Unknown".
 - "role_title": string, the exact job title from the posting (e.g. "Senior Software Engineer"). Use ONLY the job posting.
-- "role_focus": exactly one of {json.dumps(ROLE_FOCUS_OPTIONS)} (FRONTEND, BACKEND, FULL-STACK, EMBEDDED, ML). Pick the best match from the job posting.
-- "role_level": exactly one of {json.dumps(ROLE_LEVEL_OPTIONS)} (JUNIOR, MID, SENIOR, STAFF, PRINCIPAL). Infer from title/requirements in the job posting.
-- "employee_count": integer or null. Set only when a number is clearly stated in external search results or job posting (e.g. "500 employees", "headcount 200", "200+ employees"). If unclear or absent, use null.
-- "company_type": exactly one of {json.dumps(COMPANY_TYPES)}. Use external search or job posting. If employee count is stated and > 200, use SCALE-UP or BIG TECH, never STARTUP. If unclear, use UNKNOWN.
-- "company_size_bucket": exactly one of {json.dumps(COMPANY_SIZE_BUCKETS)}. Prefer from employee count: <50, 50-200, 200-1000, 1000+. If unclear, use UNKNOWN.
+- "role_focus": exactly one of {json.dumps(ROLE_FOCUS_OPTIONS)}. Pick the SINGLE best match. Use FRONTEND only if the role is primarily front-end; BACKEND only if primarily back-end; FULL-STACK only if the posting explicitly says full-stack or clearly requires both. Do NOT default to FULL-STACK unless the posting clearly indicates it. Use EMBEDDED for firmware/hardware/embedded; ML for ML/MLOps/data-science focus.
+- "role_level": exactly one of {json.dumps(ROLE_LEVEL_OPTIONS)}. Infer from job title and requirements. "Senior" or "Sr." in title → SENIOR; "Staff", "Principal", "Lead", "Architect" → STAFF or PRINCIPAL; "Junior", "Entry", "Graduate" → JUNIOR. Do NOT default to MID unless the posting clearly indicates mid-level; when in doubt prefer SENIOR if the title suggests it.
+- "employee_count": integer or null. Set ONLY when a number is clearly stated in external search results or job posting (e.g. "50 employees", "headcount 200", "we're 500", "200+ employees"). Look in both the job posting and the search results. If unclear or absent, use null.
+- "company_type": exactly one of {json.dumps(COMPANY_TYPES)}. Prefer from employee count when available: <200 → STARTUP; 200+ → SCALE-UP or BIG TECH. BIG TECH = well-known large tech (Google, Meta, Amazon, Microsoft, Apple, etc.). STARTUP = small, venture-backed, or early-stage. GOV = government/contractor. If employee count is stated and > 200, use SCALE-UP or BIG TECH, never STARTUP. If no clear signal, use UNKNOWN.
+- "company_size_bucket": exactly one of {json.dumps(COMPANY_SIZE_BUCKETS)}. Prefer from employee count when stated: <50 → "<50", 50-199 → "50-200", 200-999 → "200-1000", 1000+ → "1000+". If employee count is not clearly stated, use UNKNOWN.
 
 No other keys. No explanation.
 {search_block}
@@ -218,19 +218,34 @@ JOB POSTING:
 
     if employee_count is not None:
         company_type, company_size_bucket = _derive_company_type_and_bucket(employee_count)
+        reason_company_type = f"derived from employee_count={employee_count}"
+        reason_company_size = f"derived from employee_count={employee_count}"
     else:
         company_type = pick(COMPANY_TYPES, "company_type", "UNKNOWN")
         company_size_bucket = pick(COMPANY_SIZE_BUCKETS, "company_size_bucket", "UNKNOWN")
+        reason_company_type = "from job posting (no employee_count found)"
+        reason_company_size = "from job posting (no employee_count found)"
     _debug_log("H5", "batch_extract_metadata:derive_result", "company_type/size source", {"employee_count_in": employee_count, "company_type": company_type, "company_size_bucket": company_size_bucket, "source": "derived" if employee_count is not None else "llm_fallback"})
 
-    return {
+    role_focus = pick(ROLE_FOCUS_OPTIONS, "role_focus", "FULL-STACK")
+    role_level = pick(ROLE_LEVEL_OPTIONS, "role_level", "SENIOR")
+
+    reasons = {
+        "company_type": reason_company_type,
+        "company_size_bucket": reason_company_size,
+        "role_focus": "from job posting",
+        "role_level": "from job posting",
+    }
+
+    data_out = {
         "company_name": (data.get("company_name") or "").strip() or "Unknown",
         "role_title": (data.get("role_title") or "").strip() or "Unknown",
         "company_type": company_type,
         "company_size_bucket": company_size_bucket,
-        "role_focus": pick(ROLE_FOCUS_OPTIONS, "role_focus", "FULL-STACK"),
-        "role_level": pick(ROLE_LEVEL_OPTIONS, "role_level", "SENIOR"),
+        "role_focus": role_focus,
+        "role_level": role_level,
     }
+    return data_out, reasons
 
 
 def slugify(s: str) -> str:
@@ -336,7 +351,7 @@ def main():
         print(f"Row {idx}: {company} | {date_iso}")
 
         try:
-            data = extract_metadata_for_job_dir(job_dir)
+            data, reasons = extract_metadata_for_job_dir(job_dir)
         except Exception as e:
             print(f"  ⚠️ Failed: {e}")
             continue
@@ -345,7 +360,11 @@ def main():
             if c and json_key in data:
                 val = data.get(json_key)
                 ws.update_cell(idx, c, val if val is not None else "")
-        print(f"  → {data.get('company_name', '')} | {data.get('role_title', '')} | {data.get('company_type', '')} | {data.get('company_size_bucket', '')}")
+        print(f"  → {data.get('company_name', '')} | {data.get('role_title', '')} | {data.get('company_type', '')} | {data.get('company_size_bucket', '')} | {data.get('role_focus', '')} | {data.get('role_level', '')}")
+        print(f"     company_type: {reasons.get('company_type', '')}")
+        print(f"     company_size_bucket: {reasons.get('company_size_bucket', '')}")
+        print(f"     role_focus: {reasons.get('role_focus', '')}")
+        print(f"     role_level: {reasons.get('role_level', '')}")
 
     print("\n✅ Done\n")
 
