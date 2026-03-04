@@ -2,6 +2,8 @@
 Single command: for each new row (no archived_at), archive job, extract metadata,
 run initial fit score, and write COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET,
 ROLE FOCUS, ROLE LEVEL, and initial fit score to the sheet.
+
+Alias: popjobs
 """
 import json
 import os
@@ -85,6 +87,7 @@ def main():
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
     company_col = col.get("company name") or col.get("company")
     initial_fit_col = col.get(INITIAL_FIT_SCORE_HEADER.lower())
+    job_dir_col = col.get("job_dir") or col.get("archive_path") or col.get("archive path")
 
     if not date_applied_col:
         raise SystemExit(f'Sheet must have column "{DATE_APPLIED_HEADER}".')
@@ -106,54 +109,49 @@ def main():
 
         date_applied_iso = parse_date_applied(date_applied_raw)
         if not date_applied_iso:
-            print(f"⚠️ Skipping row {idx}: no valid '{DATE_APPLIED_HEADER}' (got: {date_applied_raw!r})")
+            print(f"\n⏭️ Skipping row {idx}: no valid '{DATE_APPLIED_HEADER}' (got: {date_applied_raw!r})")
             continue
 
-        # --- 1. Archive ---
-        if company_from_sheet:
-            print(f"\n⬇️  Row {idx}: populating {company_from_sheet} | {url}")
-            result = subprocess.run(
-                ["python", str(ARCHIVE_SCRIPT), company_from_sheet, url, date_applied_iso],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 2 or "POSTING_NOT_FOUND" in (result.stdout or "") + (result.stderr or ""):
-                print(f"  ⚠️ Row {idx} skipped: posting not found.")
-                continue
-            if result.returncode != 0:
-                print(f"  ⚠️ Row {idx} archive failed: {result.stderr or result.stdout}")
-                continue
-            company_display = company_from_sheet
-            job_dir = DATA_DIR / slugify(company_display) / date_applied_iso
-        else:
-            print(f"\n⬇️  Row {idx}: populating (inferring company) | {url}")
-            result = subprocess.run(
-                ["python", str(ARCHIVE_SCRIPT), url, date_applied_iso],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 2 or "POSTING_NOT_FOUND" in (result.stdout or "") + (result.stderr or ""):
-                print(f"  ⚠️ Row {idx} skipped: posting not found.")
-                continue
-            if result.returncode != 0:
-                print(f"  ⚠️ Row {idx} archive failed: {result.stderr or result.stdout}")
-                continue
-            company_display = "Unknown"
-            for line in (result.stdout or "").splitlines():
-                if line.startswith("COMPANY: "):
-                    company_display = line.removeprefix("COMPANY: ").strip()
-                    if company_col:
-                        ws.update_cell(idx, company_col, company_display)
-                    break
-            company_for_folder = company_display
-            if (company_display or "").strip() in ("", "Unknown"):
-                manual = input(f"  Row {idx}: Could not identify company. Enter company name (or Enter to keep 'Unknown'): ").strip()
-                if manual:
-                    company_display = manual
-                    if company_col:
-                        ws.update_cell(idx, company_col, company_display)
-            # Archive lives under inferred name (possibly "unknown"); use that for job_dir
-            job_dir = DATA_DIR / slugify(company_for_folder or "unknown") / date_applied_iso
+        # --- 1. Archive (always infer company + role title from job page for consistent folder names) ---
+        print(f"\n⬇️  Row {idx}: populating (inferring company + role title) | {url}")
+        result = subprocess.run(
+            ["python", str(ARCHIVE_SCRIPT), url, date_applied_iso],
+            capture_output=True,
+            text=True,
+            cwd=SCRIPT_DIR.parent,
+        )
+        if result.returncode == 2 or "POSTING_NOT_FOUND" in (result.stdout or "") + (result.stderr or ""):
+            print(f"  ⚠️ Row {idx} skipped: posting not found.")
+            continue
+        if result.returncode != 0:
+            print(f"  ⚠️ Row {idx} archive failed: {result.stderr or result.stdout}")
+            continue
+
+        company_display = "Unknown"
+        role_title_from_archive = None
+        for line in (result.stdout or "").splitlines():
+            line = line.strip()
+            if line.upper().startswith("COMPANY:"):
+                company_display = line.split(":", 1)[1].strip() or "Unknown"
+            elif line.upper().startswith("ROLE_TITLE:"):
+                role_title_from_archive = line.split(":", 1)[1].strip()
+
+        if company_col and company_display:
+            ws.update_cell(idx, company_col, company_display)
+        role_title_col = meta_cols.get("role title") if meta_cols else None
+        if role_title_col and role_title_from_archive:
+            ws.update_cell(idx, role_title_col, role_title_from_archive)
+
+        if (company_display or "").strip() in ("", "Unknown"):
+            manual = input(f"  Row {idx}: Could not identify company. Enter company name (or Enter to keep 'Unknown'): ").strip()
+            if manual:
+                company_display = manual
+                if company_col:
+                    ws.update_cell(idx, company_col, company_display)
+
+        job_dir = DATA_DIR / slugify(company_display or "unknown") / date_applied_iso
+        if job_dir_col:
+            ws.update_cell(idx, job_dir_col, str(job_dir))
         if not (job_dir / "job.txt").exists():
             print(f"  ⚠️ No job.txt at {job_dir}; skipping metadata and fit score.")
             ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))

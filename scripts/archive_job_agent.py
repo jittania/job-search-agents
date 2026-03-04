@@ -49,35 +49,39 @@ def posting_unavailable(response_status: int | None, text: str) -> bool:
     return any(p in t for p in phrases)
 
 
-def infer_company_from_job_text(job_text: str) -> str:
-    """Use Claude to extract the hiring company name from job posting text."""
+def infer_company_and_role_title(job_text: str) -> tuple[str, str]:
+    """Use Claude to extract hiring company name and job title from job posting text. Returns (company_name, role_title)."""
     load_dotenv()
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    prompt = """From the following job posting text, extract only the name of the company that is hiring for this position. Return nothing but the company name, one line, no explanation. If you cannot determine the company, return "Unknown"."""
+    prompt = """From the following job posting text, extract exactly two things. Return ONLY these two lines, nothing else:
+COMPANY: <the exact name of the company that is hiring, e.g. "Costco" or "Ditto" - use a short, common name when obvious>
+ROLE_TITLE: <the exact job title from the posting, e.g. "Senior Software Engineer">
+
+Use short company names where natural (e.g. "Costco" not "Costco Wholesale Corporation"). One line each. If unclear, use "Unknown"."""
     snippet = job_text[:20000].strip()
     msg = client.messages.create(
         model="claude-3-haiku-20240307",
-        max_tokens=64,
+        max_tokens=128,
         messages=[{"role": "user", "content": f"{prompt}\n\n{snippet}"}],
     )
-    name = (msg.content[0].text or "").strip()
-    return name or "Unknown"
+    raw = (msg.content[0].text or "").strip()
+    company_raw = "Unknown"
+    role_title = "Unknown"
+    for line in raw.splitlines():
+        line = line.strip()
+        if line.upper().startswith("COMPANY:"):
+            company_raw = line.split(":", 1)[1].strip() or "Unknown"
+        elif line.upper().startswith("ROLE_TITLE:"):
+            role_title = line.split(":", 1)[1].strip() or "Unknown"
+    return company_raw or "Unknown", role_title or "Unknown"
 
 
 def main():
-    # 3 args: url, date_applied → infer company from job page
-    # 4 args: company, url, date_applied → use provided company
-    if len(sys.argv) not in (3, 4):
-        print("Usage: python scripts/archive_job_agent.py <url> <date_YYYY-MM-DD>  OR  <company> <url> <date_YYYY-MM-DD>", file=sys.stderr)
+    if len(sys.argv) != 3:
+        print("Usage: python scripts/archive_job_agent.py <url> <date_YYYY-MM-DD>", file=sys.stderr)
         raise SystemExit(1)
 
-    if len(sys.argv) == 3:
-        url, folder_date = sys.argv[1], sys.argv[2]
-        company_raw = None
-    else:
-        company_raw = sys.argv[1]
-        url = sys.argv[2]
-        folder_date = sys.argv[3]
+    url, folder_date = sys.argv[1], sys.argv[2]
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -93,10 +97,9 @@ def main():
                 print("POSTING_NOT_FOUND", file=sys.stderr)
                 sys.exit(POSTING_NOT_FOUND_EXIT)
 
-            if company_raw is None:
-                company_raw = infer_company_from_job_text(text)
-                # So batch script can write back to sheet
-                print(f"COMPANY: {company_raw}", flush=True)
+            company_raw, role_title = infer_company_and_role_title(text)
+            print(f"COMPANY: {company_raw}", flush=True)
+            print(f"ROLE_TITLE: {role_title}", flush=True)
 
             company = slugify(company_raw)
             out_dir = Path("data") / company / folder_date
