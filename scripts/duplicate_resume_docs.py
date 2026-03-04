@@ -170,7 +170,7 @@ def main():
     col = {h.strip().lower(): i + 1 for i, h in enumerate(headers)}
 
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
-    company_col = col.get("company")
+    company_col = col.get("company name") or col.get("company")
     role_title_col = col.get("role title")
 
     if not date_applied_col or not company_col or not role_title_col:

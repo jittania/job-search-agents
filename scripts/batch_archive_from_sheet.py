@@ -68,7 +68,7 @@ def main():
     col = {h.strip().lower(): i + 1 for i, h in enumerate(headers)}  # 1-based, case-insensitive
 
     archived_at_col = col["archived_at"]
-    company_col = col.get("company")  # optional: inferred from job page if missing
+    company_col = col.get("company name") or col.get("company")  # optional: inferred from job page if missing
     url_col = col["posting link"]
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
     if not date_applied_col:

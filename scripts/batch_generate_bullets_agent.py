@@ -87,12 +87,13 @@ def main():
     headers = sh.row_values(1)
     col = {h.strip().lower(): i + 1 for i, h in enumerate(headers)}
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
-    company_col = col.get("company")
+    company_col = col.get("company name") or col.get("company")
+    applied_via_col = col.get(APPLIED_VIA_HEADER.lower())
     if not date_applied_col or not company_col:
         raise SystemExit("Sheet must have columns: date applied, company.")
     rows = sh.get_all_values()[1:]
     target_dirs = []
-    for row in rows:
+    for idx, row in enumerate(rows, start=2):
         date_raw = (row[date_applied_col - 1] or "").strip() if date_applied_col <= len(row) else ""
         date_iso = parse_date_applied(date_raw)
         if date_iso != day:

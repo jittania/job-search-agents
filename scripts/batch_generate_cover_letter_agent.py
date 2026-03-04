@@ -161,23 +161,29 @@ def main():
         headers = sh.row_values(1)
         col = {h.strip().lower(): i + 1 for i, h in enumerate(headers)}
         date_col = col.get(DATE_APPLIED_HEADER.lower())
-        company_col = col.get("company")
+        company_col = col.get("company name") or col.get("company")
         role_col = col.get("role title")
+        applied_via_col = col.get(APPLIED_VIA_HEADER.lower())
         if not all([date_col, company_col, role_col]):
             raise SystemExit("Sheet must have date applied, company, role title.")
         rows = sh.get_all_values()[1:]
         company_display = role_title = None
-        for row in rows:
+        for idx, row in enumerate(rows, start=2):
             if date_col <= len(row) and parse_date_applied((row[date_col - 1] or "").strip()) != date_iso:
                 continue
             c = (row[company_col - 1] or "").strip() if company_col <= len(row) else ""
             if slugify(c) == company_slug:
+                if applied_via_col and applied_via_col <= len(row):
+                    applied_via = (row[applied_via_col - 1] or "").strip()
+                    if applied_via != APPLIED_VIA_NOT_APPLIED:
+                        print(f"⏭️ Skipping: row {idx} {company_slug} / {date_iso} (APPLIED VIA = {applied_via!r})", file=sys.stderr)
+                        raise SystemExit(0)
                 company_display = c
                 role_title = (row[role_col - 1] or "").strip() if role_col <= len(row) else "Role"
                 break
         if not company_display:
             raise SystemExit(f"Could not find sheet row for {job_dir}. Ensure date applied and company match.")
-        name = f"{date_iso}__JittaniaSmith_{to_camel_case(company_display)}_{to_camel_case(role_title)}.docx"
+        name = f"{date_iso}__JittaniaSmith_{to_camel_case(company_display)}_{to_camel_case(role_title)}_CL.docx"
         letter = generate_letter(job_dir, Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"]))
         docx_bytes = make_docx_from_text(letter)
         drive = build("drive", "v3", credentials=get_drive_credentials())
@@ -216,14 +222,15 @@ def main():
     headers = sh.row_values(1)
     col = {h.strip().lower(): i + 1 for i, h in enumerate(headers)}
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
-    company_col = col.get("company")
+    company_col = col.get("company name") or col.get("company")
     role_title_col = col.get("role title")
+    applied_via_col = col.get(APPLIED_VIA_HEADER.lower())
     if not date_applied_col or not company_col or not role_title_col:
         raise SystemExit("Sheet must have columns: date applied, company, role title.")
 
     rows = sh.get_all_values()[1:]
     target_rows = []
-    for row in rows:
+    for idx, row in enumerate(rows, start=2):
         date_raw = (row[date_applied_col - 1] or "").strip() if date_applied_col <= len(row) else ""
         date_iso = parse_date_applied(date_raw)
         if date_iso != target_date_iso:
