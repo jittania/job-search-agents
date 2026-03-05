@@ -2,12 +2,10 @@
 Fill or overwrite metadata:
 - ✅ role title - works as expected
 - ✅ company name - works as expected
-- company type - ❌ seems to be defaulting incorrectly to "scale-up" or "unknown" in some cases
+- ✅ company type
 - company size bucket - ❌ having trouble with companies under < 1000
 - role focus -  ❌ defaulting incorrectly to full-stack most of the time
 - role level - ❌ defaulting incorrectly to mid
-in the tracker sheet. Prompts: overwrite all or only populate rows missing metadata (company type empty).
-Uses same job_dir logic as batchfitscore: job_dir/archive_path column or data/<company>/<date>.
 
 Alias: batchmetadata
 """
@@ -29,10 +27,8 @@ DEBUG_LOG_PATH = PROJECT_ROOT / ".cursor" / "debug-6857d3.log"
 DATE_APPLIED_HEADER = "date applied"
 JOB_DIR_HEADERS = ("job_dir", "archive_path", "archive path")
 
-# Sheet column headers (case-insensitive) -> JSON key from extraction
+# Sheet column headers (case-insensitive) -> JSON key from extraction (company name and role title are set at archive time)
 METADATA_COLUMNS = {
-    "company name": "company_name",
-    "role title": "role_title",
     "company type": "company_type",
     "company size bucket": "company_size_bucket",
     "role focus": "role_focus",
@@ -43,11 +39,43 @@ METADATA_COLUMNS = {
 METADATA_SENTINEL_HEADER = "company type"
 
 # ---- Extraction (from job.txt + optional web search) ----
-COMPANY_TYPES = ["STARTUP", "BIG TECH", "GOV", "SCALE-UP", "UNKNOWN"]
+# Company type: rubric-based classification (signals from search + posting); employee count alone must not determine type.
+COMPANY_TYPES = [
+    "big_tech",
+    "startup",
+    "scale_up",
+    "enterprise_tech",
+    "consulting_or_agency",
+    "government_or_nonprofit",
+    "unknown",
+]
 COMPANY_SIZE_BUCKETS = ["<50", "50-200", "200-1000", "1000+", "UNKNOWN"]
 ROLE_FOCUS_OPTIONS = ["FRONTEND", "BACKEND", "FULL-STACK", "EMBEDDED", "ML"]
 ROLE_LEVEL_OPTIONS = ["JUNIOR", "MID", "SENIOR", "STAFF", "PRINCIPAL"]
 MAX_SEARCH_CHARS = 3500
+
+COMPANY_TYPE_RUBRIC = """
+Company type: decide from business model and job/search wording first. Employee count alone must NOT determine company_type. When employee_count is null you must still assign a type using job posting and search text — do not use unknown just because headcount is missing.
+
+- big_tech: Globally dominant tech platform (e.g. Amazon, Google, Apple, Microsoft, Meta), major infrastructure/platform. Heuristic: >10000 employees, "tech giant".
+- startup: Early-stage, product-market fit. Signals: described as startup, Seed/Series A/B, small team. Heuristic: <100 employees, early funding, founded <7–10 years ago.
+- scale_up: Venture-backed, scaling. Signals: strong growth, Series C+, expanding workforce. Heuristic: 100–2000 employees, rapid growth, often private.
+- enterprise_tech: Mature tech company selling software/products, not "big tech". Established vendor, large customer base. Heuristic: thousands of employees, public or long-established.
+- consulting_or_agency: Sells services not products. Use this when the business model is clearly services/consulting, even if no employee count is found. Keywords in job or search: consulting, advisory, services firm, digital agency, IT services, professional services, "we help clients", outsourcing. Classify as consulting_or_agency when you see these signals — do not require employee_count.
+- government_or_nonprofit: Government, nonprofit, academic. Use when job or search clearly indicates it, even if no employee count. Keywords: government agency, nonprofit, public sector, university, research institution. Classify as government_or_nonprofit when you see these signals — do not require employee_count.
+- unknown: Only when you truly cannot tell from job or search text. Do not use unknown just because employee_count is null.
+"""
+
+# Display labels for sheet (must match dropdown: BIG TECH, SCALE-UP, STARTUP, CONSULTING/AGENCY, GOV/NON-PROFIT, UNKNOWN, ENTERPRISE TECH)
+COMPANY_TYPE_TO_DISPLAY = {
+    "big_tech": "BIG TECH",
+    "startup": "STARTUP",
+    "scale_up": "SCALE-UP",
+    "enterprise_tech": "ENTERPRISE TECH",
+    "consulting_or_agency": "CONSULTING/AGENCY",
+    "government_or_nonprofit": "GOV/NON-PROFIT",
+    "unknown": "UNKNOWN",
+}
 
 
 def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
@@ -65,17 +93,17 @@ def _is_retryable(err: Exception) -> bool:
     return "529" in s or "overloaded" in s or "429" in s or "rate" in s
 
 
-def _derive_company_type_and_bucket(employee_count: int | None) -> tuple[str, str]:
-    """Derive company_type and company_size_bucket from employee count. Hard rule: if employee count > 200, NEVER STARTUP."""
-    if employee_count is None:
-        return "UNKNOWN", "UNKNOWN"
+def _derive_size_bucket_from_employee_count(employee_count: int | None) -> str | None:
+    """Return company_size_bucket from employee count when available; else None (use LLM output)."""
+    if employee_count is None or employee_count <= 0:
+        return None
     if employee_count < 50:
-        return "STARTUP", "<50"
+        return "<50"
     if employee_count < 200:
-        return "STARTUP", "50-200"
+        return "50-200"
     if employee_count < 1000:
-        return "SCALE-UP", "200-1000"
-    return "SCALE-UP", "1000+"
+        return "200-1000"
+    return "1000+"
 
 
 def _company_display_name_from_slug(slug: str) -> str:
@@ -86,7 +114,7 @@ def _company_display_name_from_slug(slug: str) -> str:
 
 
 def _search_company_info(company_name: str) -> str:
-    """Run web search for company size/type; return combined snippets or empty string on failure."""
+    """Run web search for company size, type, funding, and description; return combined snippets or empty string on failure."""
     if not (company_name or "").strip():
         return ""
     try:
@@ -95,9 +123,12 @@ def _search_company_info(company_name: str) -> str:
         return ""
     snippets = []
     queries = [
-        f'"{company_name}" employee count',
+        f'"{company_name}" company description',
+        f'"{company_name}" about us what we do',
+        f'"{company_name}" employee count headcount',
+        f'"{company_name}" funding series startup',
         f'site:linkedin.com/company "{company_name}" employees',
-        f'"{company_name}" headcount',
+        f'"{company_name}" consulting agency services',
     ]
     try:
         ddgs = DDGS()
@@ -134,22 +165,23 @@ def extract_metadata_for_job_dir(job_dir: Path) -> dict:
 
     if external_search:
         search_block = f"""
-EXTERNAL SEARCH RESULTS (use to set employee_count when a number is clearly stated; company_type and company_size_bucket will be derived from employee count):
+EXTERNAL SEARCH RESULTS (use for company description, funding, employee count, and business model; combine with job posting to classify company type and size):
 {external_search}
 """
     else:
-        search_block = "\n(No external search results available; use job posting only for employee_count if stated.)\n"
+        search_block = "\n(No external search results available; use job posting only.)\n"
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     prompt = f"""From the job posting below (and external search results when provided), extract metadata. Return ONLY valid JSON with exactly these keys:
 
-- "company_name": string, the exact name of the company that is hiring (e.g. "Anthropic", "Google"). One line, no explanation. If unclear, "Unknown".
-- "role_title": string, the exact job title from the posting (e.g. "Senior Software Engineer"). Use ONLY the job posting.
-- "role_focus": exactly one of {json.dumps(ROLE_FOCUS_OPTIONS)}. Pick the SINGLE best match. Use FRONTEND only if the role is primarily front-end; BACKEND only if primarily back-end; FULL-STACK only if the posting explicitly says full-stack or clearly requires both. Do NOT default to FULL-STACK unless the posting clearly indicates it. Use EMBEDDED for firmware/hardware/embedded; ML for ML/MLOps/data-science focus.
-- "role_level": exactly one of {json.dumps(ROLE_LEVEL_OPTIONS)}. Infer from job title and requirements. "Senior" or "Sr." in title → SENIOR; "Staff", "Principal", "Lead", "Architect" → STAFF or PRINCIPAL; "Junior", "Entry", "Graduate" → JUNIOR. Do NOT default to MID unless the posting clearly indicates mid-level; when in doubt prefer SENIOR if the title suggests it.
-- "employee_count": integer or null. Set ONLY when a number is clearly stated in external search results or job posting (e.g. "50 employees", "headcount 200", "we're 500", "200+ employees"). Look in both the job posting and the search results. If unclear or absent, use null.
-- "company_type": exactly one of {json.dumps(COMPANY_TYPES)}. Prefer from employee count when available: <200 → STARTUP; 200+ → SCALE-UP or BIG TECH. BIG TECH = well-known large tech (Google, Meta, Amazon, Microsoft, Apple, etc.). STARTUP = small, venture-backed, or early-stage. GOV = government/contractor. If employee count is stated and > 200, use SCALE-UP or BIG TECH, never STARTUP. If no clear signal, use UNKNOWN.
-- "company_size_bucket": exactly one of {json.dumps(COMPANY_SIZE_BUCKETS)}. Prefer from employee count when stated: <50 → "<50", 50-199 → "50-200", 200-999 → "200-1000", 1000+ → "1000+". If employee count is not clearly stated, use UNKNOWN.
+- "company_name": string, the exact name of the company that is hiring. One line. If unclear, "Unknown".
+- "role_title": string, the exact job title from the posting. Use ONLY the job posting.
+- "role_focus": exactly one of {json.dumps(ROLE_FOCUS_OPTIONS)}. Pick the SINGLE best match. Do NOT default to FULL-STACK unless the posting clearly indicates it.
+- "role_level": exactly one of {json.dumps(ROLE_LEVEL_OPTIONS)}. Infer from job title and requirements. Do NOT default to MID unless clearly mid-level.
+- "employee_count": integer or null. Use the EXACT number when clearly stated (e.g. "341,000 employees" → 341000, "50 employees" → 50). Do NOT use bucket boundaries like 1000 or 2000 unless that is the actual number stated; if the text says "300,000+ employees" or "over 300k", use 300000. If no clear number, use null.
+- "company_type": exactly one of {json.dumps(COMPANY_TYPES)}. Decide company_type FIRST from business model and keywords (consulting, agency, government, nonprofit, startup, big tech, etc.) in the job posting and search results. Then set employee_count and company_size_bucket. Missing employee_count must NOT push company_type to unknown.
+{COMPANY_TYPE_RUBRIC}
+- "company_size_bucket": exactly one of {json.dumps(COMPANY_SIZE_BUCKETS)}. Prefer from employee count when stated: <50 → "<50", 50-199 → "50-200", 200-999 → "200-1000", 1000+ → "1000+". If employee count not clearly stated, use UNKNOWN.
 
 No other keys. No explanation.
 {search_block}
@@ -196,9 +228,10 @@ JOB POSTING:
         val = (data.get(key) or "").strip()
         if not val:
             return default
-        val_upper = val.upper().replace(" ", "")
+        val_norm = val.upper().replace(" ", "").replace("_", "")
         for a in allowed:
-            if a.upper() == val.upper() or a.upper().replace(" ", "") in val_upper or val_upper in a.upper().replace(" ", ""):
+            a_norm = a.upper().replace(" ", "").replace("_", "")
+            if a_norm == val_norm or a_norm in val_norm or val_norm in a_norm:
                 return a
         return default
 
@@ -216,16 +249,19 @@ JOB POSTING:
                 pass
     _debug_log("H2_H4", "batch_extract_metadata:after_parse_ec", "employee_count after parsing", {"raw_ec": raw_ec, "employee_count": employee_count})
 
-    if employee_count is not None:
-        company_type, company_size_bucket = _derive_company_type_and_bucket(employee_count)
-        reason_company_type = f"derived from employee_count={employee_count}"
+    # Company type: always from LLM (rubric-based; employee count alone must not determine it)
+    company_type = pick(COMPANY_TYPES, "company_type", "unknown")
+    reason_company_type = "from search + job posting (rubric)"
+
+    # Company size bucket: derive from employee count when available, else from LLM
+    size_from_ec = _derive_size_bucket_from_employee_count(employee_count)
+    if size_from_ec is not None:
+        company_size_bucket = size_from_ec
         reason_company_size = f"derived from employee_count={employee_count}"
     else:
-        company_type = pick(COMPANY_TYPES, "company_type", "UNKNOWN")
         company_size_bucket = pick(COMPANY_SIZE_BUCKETS, "company_size_bucket", "UNKNOWN")
-        reason_company_type = "from job posting (no employee_count found)"
-        reason_company_size = "from job posting (no employee_count found)"
-    _debug_log("H5", "batch_extract_metadata:derive_result", "company_type/size source", {"employee_count_in": employee_count, "company_type": company_type, "company_size_bucket": company_size_bucket, "source": "derived" if employee_count is not None else "llm_fallback"})
+        reason_company_size = "from search + job posting"
+    _debug_log("H5", "batch_extract_metadata:derive_result", "company_type/size", {"employee_count_in": employee_count, "company_type": company_type, "company_size_bucket": company_size_bucket})
 
     role_focus = pick(ROLE_FOCUS_OPTIONS, "role_focus", "FULL-STACK")
     role_level = pick(ROLE_LEVEL_OPTIONS, "role_level", "SENIOR")
@@ -237,10 +273,11 @@ JOB POSTING:
         "role_level": "from job posting",
     }
 
+    company_type_display = COMPANY_TYPE_TO_DISPLAY.get(company_type) or company_type.upper().replace("_", " ")
     data_out = {
         "company_name": (data.get("company_name") or "").strip() or "Unknown",
         "role_title": (data.get("role_title") or "").strip() or "Unknown",
-        "company_type": company_type,
+        "company_type": company_type_display,
         "company_size_bucket": company_size_bucket,
         "role_focus": role_focus,
         "role_level": role_level,
@@ -332,7 +369,7 @@ def main():
 
         date_iso = parse_date_applied(date_applied_raw)
         if not date_iso:
-            print(f"Skipping row {idx}: no valid '{DATE_APPLIED_HEADER}' (got: {date_applied_raw!r})")
+            print(f"\n⏭️ Skipping row {idx}: no valid '{DATE_APPLIED_HEADER}' (got: {date_applied_raw!r})")
             continue
 
         if job_dir_col and job_dir_col <= len(row):
@@ -345,10 +382,26 @@ def main():
             job_dir = DATA_DIR / slugify(company) / date_iso
         job_txt = job_dir / "job.txt"
         if not job_txt.exists():
-            print(f"Skipping row {idx}: no archived job at {job_dir}")
-            continue
+            # Fallback: sheet company may differ from folder name (e.g. "Costco Wholesale" vs data/costco/); find by date
+            found = None
+            if DATA_DIR.exists():
+                for company_dir in sorted(DATA_DIR.iterdir()):
+                    if not company_dir.is_dir():
+                        continue
+                    candidate = company_dir / date_iso
+                    if (candidate / "job.txt").exists():
+                        found = candidate
+                        break
+            if found is None:
+                print(f"\n⏭️ Skipping row {idx}: no archived job at {job_dir}")
+                continue
+            job_dir = found
+            job_txt = job_dir / "job.txt"
+        else:
+            job_dir = job_dir.resolve() if not job_dir.is_absolute() else job_dir
+            job_txt = job_dir / "job.txt"
 
-        print(f"Row {idx}: {company} | {date_iso}")
+        print(f"\nRow {idx}: {company} | {date_iso}")
 
         try:
             data, reasons = extract_metadata_for_job_dir(job_dir)
