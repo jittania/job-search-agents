@@ -118,12 +118,17 @@ def main():
     if not initial_fit_col:
         raise SystemExit(f'Sheet must have a column named "{INITIAL_FIT_SCORE_HEADER}".')
 
-    print("Initial fit score: overwrite all existing scores, or only populate rows that don't have a score yet?")
-    choice = input("  [A]ll overwrite  |  [N]ew only (default: N): ").strip().upper() or "N"
-    overwrite_all = choice == "A" or choice == "ALL"
+    company_filter = (sys.argv[1].strip() if len(sys.argv) > 1 else None) or None
+    if company_filter:
+        print(f"Company filter: only rows matching {company_filter!r}\n")
+        overwrite_all = True
+    else:
+        print("Initial fit score: overwrite all existing scores, or only populate rows that don't have a score yet?")
+        choice = input("  [A]ll overwrite  |  [N]ew only (default: N): ").strip().upper() or "N"
+        overwrite_all = choice == "A" or choice == "ALL"
     if overwrite_all:
         print("Mode: overwrite all existing fit scores.\n")
-    else:
+    elif not company_filter:
         print("Mode: only populate rows missing a score.\n")
 
     rows = ws.get_all_values()[1:]
@@ -136,6 +141,8 @@ def main():
         initial_fit_val = (row[initial_fit_col - 1] or "").strip() if initial_fit_col <= len(row) else ""
 
         if not company:
+            continue
+        if company_filter and company_filter.lower() not in company.lower() and slugify(company) != slugify(company_filter):
             continue
         if not overwrite_all and initial_fit_val:
             continue
