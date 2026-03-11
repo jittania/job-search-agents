@@ -2,13 +2,15 @@
 Fill or overwrite metadata:
 - ✅ role title - works as expected
 - ✅ company name - works as expected
-- ✅ company type
 - company size bucket - ❌ having trouble with companies under < 1000
+- company type ❌
 - role focus -  ❌ defaulting incorrectly to full-stack most of the time
 - role level - ❌ defaulting incorrectly to mid
 
 Alias: batchmetadata
 """
+import contextlib
+import io
 import json
 import os
 import sys
@@ -16,13 +18,22 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+
+@contextlib.contextmanager
+def _suppress_ddgs_stderr():
+    """Temporarily suppress stderr to hide ddgs 'Impersonate ... does not exist' messages."""
+    stderr, sys.stderr = sys.stderr, io.StringIO()
+    try:
+        yield
+    finally:
+        sys.stderr = stderr
+
 import gspread
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
 DATA_DIR = Path("data")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEBUG_LOG_PATH = PROJECT_ROOT / ".cursor" / "debug-6857d3.log"
 
 DATE_APPLIED_HEADER = "date applied"
 JOB_DIR_HEADERS = ("job_dir", "archive_path", "archive path")
@@ -49,7 +60,7 @@ COMPANY_TYPES = [
     "government_or_nonprofit",
     "unknown",
 ]
-COMPANY_SIZE_BUCKETS = ["<50", "50-200", "200-1000", "1000+", "UNKNOWN"]
+COMPANY_SIZE_BUCKETS = ["<50", "50-200", "200-1000", "1000+", "10,000+", "UNKNOWN"]
 ROLE_FOCUS_OPTIONS = ["FRONTEND", "BACKEND", "FULL-STACK", "EMBEDDED", "ML"]
 ROLE_LEVEL_OPTIONS = ["JUNIOR", "MID", "SENIOR", "STAFF", "PRINCIPAL"]
 MAX_SEARCH_CHARS = 3500
@@ -60,8 +71,8 @@ Company type: decide from business model and job/search wording first. Employee 
 - big_tech: Globally dominant tech platform (e.g. Amazon, Google, Apple, Microsoft, Meta), major infrastructure/platform. Heuristic: >10000 employees, "tech giant".
 - startup: Early-stage, product-market fit. Signals: described as startup, Seed/Series A/B, small team. Heuristic: <100 employees, early funding, founded <7–10 years ago.
 - scale_up: Venture-backed, scaling. Signals: strong growth, Series C+, expanding workforce. Heuristic: 100–2000 employees, rapid growth, often private.
-- enterprise_tech: Mature tech company selling software/products, not "big tech". Established vendor, large customer base. Heuristic: thousands of employees, public or long-established.
-- consulting_or_agency: Sells services not products. Use this when the business model is clearly services/consulting, even if no employee count is found. Keywords in job or search: consulting, advisory, services firm, digital agency, IT services, professional services, "we help clients", outsourcing. Classify as consulting_or_agency when you see these signals — do not require employee_count.
+- enterprise_tech: Mature company selling software/products or operating in retail, healthcare, pharmacy, wholesale, or consumer goods — not "big tech". Includes retailers (e.g. warehouse clubs, retail chains), healthcare/pharmacy companies (e.g. health systems, drugstores), and established product companies. Heuristic: thousands of employees, public or long-established.
+- consulting_or_agency: The company's PRIMARY business is selling consulting, advisory, or agency services TO OTHER BUSINESSES (e.g. "we help clients", "advisory", "professional services firm", "digital agency", "staffing", "outsourcing"). Do NOT use consulting_or_agency for retailers, healthcare companies, pharmacies, or companies that mainly sell products or operate stores/facilities — having an "IT services" team or "customer services" does not make the company a consulting/agency. When in doubt between consulting_or_agency and enterprise_tech, prefer enterprise_tech unless the job or search clearly says the business model is consulting/agency.
 - government_or_nonprofit: Government, nonprofit, academic. Use when job or search clearly indicates it, even if no employee count. Keywords: government agency, nonprofit, public sector, university, research institution. Classify as government_or_nonprofit when you see these signals — do not require employee_count.
 - unknown: Only when you truly cannot tell from job or search text. Do not use unknown just because employee_count is null.
 """
@@ -76,16 +87,6 @@ COMPANY_TYPE_TO_DISPLAY = {
     "government_or_nonprofit": "GOV/NON-PROFIT",
     "unknown": "UNKNOWN",
 }
-
-
-def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
-    try:
-        payload = {"sessionId": "6857d3", "hypothesisId": hypothesis_id, "location": location, "message": message, "data": data, "timestamp": int(time.time() * 1000)}
-        DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(DEBUG_LOG_PATH, "a") as f:
-            f.write(json.dumps(payload) + "\n")
-    except Exception:
-        pass
 
 
 def _is_retryable(err: Exception) -> bool:
@@ -103,7 +104,9 @@ def _derive_size_bucket_from_employee_count(employee_count: int | None) -> str |
         return "50-200"
     if employee_count < 1000:
         return "200-1000"
-    return "1000+"
+    if employee_count < 10000:
+        return "1000+"
+    return "10,000+"
 
 
 def _company_display_name_from_slug(slug: str) -> str:
@@ -111,6 +114,275 @@ def _company_display_name_from_slug(slug: str) -> str:
     if not slug or slug == "unknown":
         return ""
     return slug.replace("-", " ").title()
+
+
+def _fetch_linkedin_company_data_via_playwright(linkedin_url: str) -> dict | None:
+    """Open LinkedIn company page with Playwright and parse visible text for employee count and industry. Return None on failure."""
+    canonical = _normalize_linkedin_company_url(linkedin_url)
+    if not canonical:
+        return None
+    try:
+        from bs4 import BeautifulSoup
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return None
+    employee_count = None
+    industry = None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.goto(canonical, wait_until="domcontentloaded", timeout=15000)
+                page.wait_for_timeout(2000)
+                # Use only the stats block that contains "X followers" and "1K-5K employees" (org-top-card-summary-info-list) so we never use "Discover all 110 employees" (members count)
+                header_text = None
+                for selector in [
+                    "div.org-top-card-summary-info-list",
+                    "section.org-top-card",
+                    "[data-test-id='org-top-card']",
+                    ".org-top-card-summary",
+                ]:
+                    try:
+                        loc = page.locator(selector)
+                        if loc.count() > 0:
+                            header_text = loc.first.inner_text()
+                            if header_text and ("followers" in header_text or "employees" in header_text):
+                                break
+                    except Exception:
+                        continue
+                if not header_text or "followers" not in header_text:
+                    try:
+                        el = page.get_by_text("followers", exact=False)
+                        if el.count() > 0:
+                            header_text = el.first.evaluate("node => node.closest('div.org-top-card-summary-info-list')?.innerText || node.closest('section')?.innerText || node.closest('div[class]')?.innerText || node.innerText || ''")
+                    except Exception:
+                        pass
+                html = page.content()
+            finally:
+                browser.close()
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        text = " ".join(soup.get_text(separator=" ").split())
+        import re
+
+        # About section (logged-out view): "Company size" / "1,001-5,000 employees" in [data-test-id="about-us__size"] — avoid face-pile "Discover all 110 employees"
+        about_size_el = soup.find(attrs={"data-test-id": "about-us__size"})
+        about_size_text = " ".join(about_size_el.get_text(separator=" ").split()) if about_size_el else None
+        about_industry_el = soup.find(attrs={"data-test-id": "about-us__industry"})
+        about_industry_text = " ".join(about_industry_el.get_text(separator=" ").split()).strip() if about_industry_el else None
+
+        stats_text = (" ".join(header_text.split())) if header_text else None
+
+        def _parse_employee_count(s: str) -> int | None:
+            # "1K-5K employees" or "1K - 5K employees" (hyphen, en-dash, or unicode minus)
+            m = re.search(r"(\d+)[Kk]\s*[-–−―]\s*(\d+)[Kk]?\s+employees?", s, re.I)
+            if m:
+                try:
+                    return int(m.group(1)) * 1000
+                except ValueError:
+                    pass
+            m = re.search(r"(\d+)[Kk]\s+employees?", s, re.I)
+            if m:
+                try:
+                    return int(m.group(1)) * 1000
+                except ValueError:
+                    pass
+            # "1,001-5,000 employees" or "10,001+ employees" (About section for large companies)
+            m = re.search(r"(\d{1,3}(?:,\d{3})*)\s*[-–]?\s*(\d{1,3}(?:,\d{3})*)?\s*\+?\s+employees?", s, re.I)
+            if m:
+                try:
+                    return int(m.group(1).replace(",", ""))
+                except ValueError:
+                    pass
+            m = re.search(r"(\d{1,3}(?:,\d{3})*)\s+employees?\s+on\s+LinkedIn", s, re.I)
+            if m:
+                try:
+                    return int(m.group(1).replace(",", ""))
+                except ValueError:
+                    pass
+            return None
+
+        def _parse_employee_count_excluding_discover_all(full_text: str) -> int | None:
+            """Parse employee count from full page text but ignore face-pile 'Discover all N employees' (LinkedIn members count)."""
+            # Prefer range formats (1K-5K, 1,001-5,000) and "XK employees" — they don't appear in the face-pile
+            m = re.search(r"(\d+)[Kk]\s*[-–−―]\s*(\d+)[Kk]?\s+employees?", full_text, re.I)
+            if m:
+                try:
+                    return int(m.group(1)) * 1000
+                except ValueError:
+                    pass
+            m = re.search(r"(\d+)[Kk]\s+employees?", full_text, re.I)
+            if m:
+                try:
+                    return int(m.group(1)) * 1000
+                except ValueError:
+                    pass
+            m = re.search(r"(\d{1,3}(?:,\d{3})*)\s*[-–]\s*(\d{1,3}(?:,\d{3})*)\s+employees?", full_text, re.I)
+            if m:
+                try:
+                    return int(m.group(1).replace(",", ""))
+                except ValueError:
+                    pass
+            # "10,001+ employees" (About section for large companies like Costco)
+            m = re.search(r"(\d{1,3}(?:,\d{3})*)\s*\+\s+employees?", full_text, re.I)
+            if m:
+                try:
+                    return int(m.group(1).replace(",", ""))
+                except ValueError:
+                    pass
+            # Bare number + "employees": only accept if not from "Discover all N employees" (face-pile)
+            discover_all_re = re.compile(r"discover\s+all", re.I)
+            def is_face_pile_match(full_text: str, m: re.Match) -> bool:
+                start = max(0, m.start() - 50)
+                return discover_all_re.search(full_text[start : m.start()]) is not None
+
+            for m in re.finditer(r"(\d{1,3}(?:,\d{3})*)\s+employees?", full_text, re.I):
+                if is_face_pile_match(full_text, m):
+                    continue
+                try:
+                    n = int(m.group(1).replace(",", ""))
+                    if n < 500 and discover_all_re.search(full_text[max(0, m.start() - 20) : m.end() + 15]):
+                        continue  # small number and "discover all" nearby → face-pile
+                    return n
+                except ValueError:
+                    continue
+            for m in re.finditer(r"(\d{1,3}(?:,\d{3})*)\s+employees?\s+on\s+LinkedIn", full_text, re.I):
+                if is_face_pile_match(full_text, m):
+                    continue
+                try:
+                    n = int(m.group(1).replace(",", ""))
+                    if n < 500 and discover_all_re.search(full_text[max(0, m.start() - 20) : m.end() + 15]):
+                        continue
+                    return n
+                except ValueError:
+                    continue
+            return None
+
+        # 1) About section (logged-out): "Company size" / "1,001-5,000 employees" — correct source
+        # 2) Top card (logged-in): "X followers · 1K-5K employees"
+        # 3) Full page, excluding face-pile "Discover all N employees"
+        employee_count = _parse_employee_count(about_size_text) if about_size_text else None
+        if employee_count is None and stats_text:
+            employee_count = _parse_employee_count(stats_text)
+        if employee_count is None:
+            employee_count = _parse_employee_count_excluding_discover_all(text)
+        # Industry: prefer About section (logged-out data-test-id="about-us__industry"), then full-page label
+        if about_industry_text:
+            industry = about_industry_text
+        if not industry:
+            m = re.search(r"Industry\s*[:\s]+([^\n|]+?)(?:\n|\\n|$|\|)", text)
+            if m:
+                industry = m.group(1).strip()
+        if not industry:
+            m = re.search(r"industr[yies]?\s*[:\s]+([^\n|]+?)(?:\n|$|\|)", text, re.I)
+            if m:
+                industry = m.group(1).strip()
+        return {"employee_count": employee_count, "industry": industry}
+    except Exception:
+        return None
+
+
+def _fetch_linkedin_company_data(linkedin_url: str) -> dict:
+    """Get employee_count and industry from the given LinkedIn company URL via Playwright. Returns dict with keys employee_count (int|None) and industry (str|None)."""
+    result = _fetch_linkedin_company_data_via_playwright(linkedin_url)
+    if result is None:
+        return {"employee_count": None, "industry": None}
+    return {"employee_count": result.get("employee_count"), "industry": result.get("industry")}
+
+
+def _company_type_from_linkedin_industry(industry: str | None) -> str | None:
+    """Map LinkedIn industry string to our company_type. Returns None if no confident match."""
+    if not (industry or "").strip():
+        return None
+    i = industry.lower()
+    # Retail, healthcare, pharmacy, consumer goods, wholesale → enterprise_tech (not consulting/agency)
+    if any(x in i for x in ["retail", "hospital", "health care", "healthcare", "pharmacy", "pharmaceutical", "consumer goods", "wholesale", "supermarket", "grocery"]):
+        return "enterprise_tech"
+    if any(x in i for x in ["consulting", "advisory", "professional services", "staffing", "outsourcing", "agency"]):
+        return "consulting_or_agency"
+    if any(x in i for x in ["government", "non-profit", "nonprofit", "education", "higher education", "university", "public sector"]):
+        return "government_or_nonprofit"
+    if any(x in i for x in ["computer software", "internet", "information technology", "software development"]):
+        return None  # could be startup, scale_up, or enterprise_tech; don't override by industry alone
+    return None
+
+
+def _normalize_linkedin_company_url(href: str) -> str | None:
+    """Return canonical https://www.linkedin.com/company/SLUG or None if not a company URL."""
+    if not href or "linkedin.com/company/" not in href:
+        return None
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(href)
+        path = (parsed.path or "").strip("/")
+        if "company/" in path:
+            slug = path.split("company/")[-1].split("/")[0].split("?")[0]
+            if slug:
+                return f"https://www.linkedin.com/company/{slug}"
+    except Exception:
+        pass
+    return None
+
+
+def _search_linkedin_company_urls(company_name: str) -> list[dict]:
+    """Return list of {title, href} for LinkedIn company pages (unique canonical URLs)."""
+    if not (company_name or "").strip():
+        return []
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        return []
+    seen: set[str] = set()
+    out: list[dict] = []
+    try:
+        with _suppress_ddgs_stderr():
+            ddgs = DDGS()
+            results = ddgs.text(f'site:linkedin.com/company "{company_name}"', max_results=8)
+        for r in results:
+            if not isinstance(r, dict):
+                continue
+            href = (r.get("href") or r.get("url") or "").strip()
+            canonical = _normalize_linkedin_company_url(href)
+            if not canonical or canonical in seen:
+                continue
+            seen.add(canonical)
+            title = (r.get("title") or "").strip()
+            out.append({"title": title or canonical, "href": canonical})
+    except Exception:
+        pass
+    return out
+
+
+def _search_company_info_from_linkedin_url(linkedin_url: str) -> str:
+    """Fetch company/employee snippets for a specific LinkedIn company URL."""
+    canonical = _normalize_linkedin_company_url(linkedin_url)
+    if not canonical:
+        return ""
+    slug = canonical.rstrip("/").split("/company/")[-1].split("?")[0]
+    if not slug:
+        return ""
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        return ""
+    snippets = []
+    for q in [f'site:linkedin.com/company/{slug}', f'"{slug}" linkedin company employees']:
+        try:
+            with _suppress_ddgs_stderr():
+                ddgs = DDGS()
+                results = ddgs.text(q, max_results=4)
+            for r in results:
+                if isinstance(r, dict):
+                    body = (r.get("body") or r.get("snippet") or "").strip()
+                    title = (r.get("title") or "").strip()
+                    if body:
+                        snippets.append(f"[{title}] {body}")
+        except Exception:
+            continue
+    combined = "\n".join(snippets).strip()
+    return combined[:MAX_SEARCH_CHARS] if combined else ""
 
 
 def _search_company_info(company_name: str) -> str:
@@ -123,18 +395,21 @@ def _search_company_info(company_name: str) -> str:
         return ""
     snippets = []
     queries = [
+        f'site:linkedin.com/company "{company_name}"',
+        f'site:linkedin.com/company "{company_name}" employees',
         f'"{company_name}" company description',
         f'"{company_name}" about us what we do',
         f'"{company_name}" employee count headcount',
         f'"{company_name}" funding series startup',
-        f'site:linkedin.com/company "{company_name}" employees',
         f'"{company_name}" consulting agency services',
     ]
     try:
-        ddgs = DDGS()
+        with _suppress_ddgs_stderr():
+            ddgs = DDGS()
         for q in queries:
             try:
-                results = ddgs.text(q, max_results=4)
+                with _suppress_ddgs_stderr():
+                    results = ddgs.text(q, max_results=4)
                 for r in results:
                     if isinstance(r, dict):
                         body = (r.get("body") or r.get("snippet") or "").strip()
@@ -151,8 +426,26 @@ def _search_company_info(company_name: str) -> str:
     return combined[:MAX_SEARCH_CHARS] if combined else ""
 
 
-def extract_metadata_for_job_dir(job_dir: Path) -> dict:
-    """Extract role_title, company_type, company_size_bucket, role_focus, role_level from job_dir/job.txt. Uses optional web search for company size."""
+def _pick_predicted_linkedin_url(linkedin_urls: list[dict], company_name: str) -> str:
+    """Choose the best-matching LinkedIn URL from candidates by company name."""
+    if not linkedin_urls:
+        return ""
+    name_lower = (company_name or "").lower()
+    name_parts = set(name_lower.replace(",", " ").replace(".", " ").split())
+    best, best_score = linkedin_urls[0]["href"], 0
+    for c in linkedin_urls:
+        title = (c.get("title") or "").lower()
+        href = (c.get("href") or "").lower()
+        score = sum(1 for p in name_parts if len(p) > 1 and (p in title or p in href))
+        if score > best_score:
+            best_score, best = score, c["href"]
+    return best
+
+
+def extract_metadata_for_job_dir(job_dir: Path, override_linkedin_url: str | None = None) -> tuple[dict, dict, str | None]:
+    """Extract role_title, company_type, company_size_bucket, role_focus, role_level from job_dir/job.txt. Uses optional web search for company size.
+    When override_linkedin_url is set, search is limited to that LinkedIn company page. When multiple LinkedIn candidates exist, prompts user to confirm or correct.
+    Returns (data_out, reasons, linkedin_url_used). linkedin_url_used is the LinkedIn company URL used for type/size when user selected or override was provided."""
     job_txt = job_dir / "job.txt"
     if not job_txt.exists():
         raise FileNotFoundError(f"No job.txt at {job_dir}")
@@ -160,12 +453,17 @@ def extract_metadata_for_job_dir(job_dir: Path) -> dict:
 
     company_slug = job_dir.parent.name
     company_display = _company_display_name_from_slug(company_slug)
-    external_search = _search_company_info(company_display) if company_display else ""
-    _debug_log("H3", "batch_extract_metadata:after_search", "external_search presence", {"company_slug": company_slug, "company_display": company_display, "search_len": len(external_search), "search_non_empty": bool(external_search.strip())})
-
+    linkedin_profile_data: dict | None = None
+    if override_linkedin_url:
+        linkedin_profile_data = _fetch_linkedin_company_data(override_linkedin_url)
+        external_search = _search_company_info_from_linkedin_url(override_linkedin_url)
+        linkedin_urls = []
+    else:
+        external_search = _search_company_info(company_display) if company_display else ""
+        linkedin_urls = _search_linkedin_company_urls(company_display) if company_display else []
     if external_search:
         search_block = f"""
-EXTERNAL SEARCH RESULTS (use for company description, funding, employee count, and business model; combine with job posting to classify company type and size):
+EXTERNAL SEARCH RESULTS (use for company description, funding, employee count, and business model; combine with job posting to classify company type and size). For employee_count, prefer numbers from LinkedIn or official company/about pages when present below:
 {external_search}
 """
     else:
@@ -178,10 +476,10 @@ EXTERNAL SEARCH RESULTS (use for company description, funding, employee count, a
 - "role_title": string, the exact job title from the posting. Use ONLY the job posting.
 - "role_focus": exactly one of {json.dumps(ROLE_FOCUS_OPTIONS)}. Pick the SINGLE best match. Do NOT default to FULL-STACK unless the posting clearly indicates it.
 - "role_level": exactly one of {json.dumps(ROLE_LEVEL_OPTIONS)}. Infer from job title and requirements. Do NOT default to MID unless clearly mid-level.
-- "employee_count": integer or null. Use the EXACT number when clearly stated (e.g. "341,000 employees" → 341000, "50 employees" → 50). Do NOT use bucket boundaries like 1000 or 2000 unless that is the actual number stated; if the text says "300,000+ employees" or "over 300k", use 300000. If no clear number, use null.
+- "employee_count": integer or null. Prefer employee count from LinkedIn (linkedin.com/company) or official company/about pages when present in the search results. Use the EXACT number when clearly stated; if no clear number, use null.
 - "company_type": exactly one of {json.dumps(COMPANY_TYPES)}. Decide company_type FIRST from business model and keywords (consulting, agency, government, nonprofit, startup, big tech, etc.) in the job posting and search results. Then set employee_count and company_size_bucket. Missing employee_count must NOT push company_type to unknown.
 {COMPANY_TYPE_RUBRIC}
-- "company_size_bucket": exactly one of {json.dumps(COMPANY_SIZE_BUCKETS)}. Prefer from employee count when stated: <50 → "<50", 50-199 → "50-200", 200-999 → "200-1000", 1000+ → "1000+". If employee count not clearly stated, use UNKNOWN.
+- "company_size_bucket": exactly one of {json.dumps(COMPANY_SIZE_BUCKETS)}. Prefer from employee count when stated: <50 → "<50", 50-199 → "50-200", 200-999 → "200-1000", 1000-9999 → "1000+", 10000+ → "10,000+". If employee count not clearly stated, use UNKNOWN.
 
 No other keys. No explanation.
 {search_block}
@@ -222,8 +520,6 @@ JOB POSTING:
             raise
         data = json.loads(raw[start : end + 1])
 
-    _debug_log("H1_H4", "batch_extract_metadata:parsed_data", "LLM JSON keys and employee_count raw", {"data_keys": list(data.keys()), "employee_count_raw": data.get("employee_count"), "employee_count_type": type(data.get("employee_count")).__name__})
-
     def pick(allowed: list[str], key: str, default: str) -> str:
         val = (data.get(key) or "").strip()
         if not val:
@@ -247,22 +543,29 @@ JOB POSTING:
                     employee_count = n
             except ValueError:
                 pass
-    _debug_log("H2_H4", "batch_extract_metadata:after_parse_ec", "employee_count after parsing", {"raw_ec": raw_ec, "employee_count": employee_count})
-
-    # Company type: always from LLM (rubric-based; employee count alone must not determine it)
+    # Company type: from LLM (rubric) unless we have LinkedIn profile data
     company_type = pick(COMPANY_TYPES, "company_type", "unknown")
     reason_company_type = "from search + job posting (rubric)"
+    if linkedin_profile_data:
+        linkedin_type = _company_type_from_linkedin_industry(linkedin_profile_data.get("industry"))
+        if linkedin_type:
+            company_type = linkedin_type
+            reason_company_type = "from LinkedIn profile (user-selected)"
 
-    # Company size bucket: derive from employee count when available, else from LLM
-    size_from_ec = _derive_size_bucket_from_employee_count(employee_count)
-    if size_from_ec is not None:
-        company_size_bucket = size_from_ec
-        reason_company_size = f"derived from employee_count={employee_count}"
+    # Company size bucket: from LinkedIn profile when available, else derive from LLM employee_count, else from LLM
+    if linkedin_profile_data and linkedin_profile_data.get("employee_count") is not None:
+        employee_count = linkedin_profile_data["employee_count"]
+        size_from_ec = _derive_size_bucket_from_employee_count(employee_count)
+        company_size_bucket = size_from_ec if size_from_ec else "UNKNOWN"
+        reason_company_size = "from LinkedIn profile (user-selected)"
     else:
-        company_size_bucket = pick(COMPANY_SIZE_BUCKETS, "company_size_bucket", "UNKNOWN")
-        reason_company_size = "from search + job posting"
-    _debug_log("H5", "batch_extract_metadata:derive_result", "company_type/size", {"employee_count_in": employee_count, "company_type": company_type, "company_size_bucket": company_size_bucket})
-
+        size_from_ec = _derive_size_bucket_from_employee_count(employee_count)
+        if size_from_ec is not None:
+            company_size_bucket = size_from_ec
+            reason_company_size = f"derived from employee_count={employee_count} (LLM from search/job; verify on LinkedIn if needed)"
+        else:
+            company_size_bucket = pick(COMPANY_SIZE_BUCKETS, "company_size_bucket", "UNKNOWN")
+            reason_company_size = f"from search + job posting → {company_size_bucket}"
     role_focus = pick(ROLE_FOCUS_OPTIONS, "role_focus", "FULL-STACK")
     role_level = pick(ROLE_LEVEL_OPTIONS, "role_level", "SENIOR")
 
@@ -282,7 +585,44 @@ JOB POSTING:
         "role_focus": role_focus,
         "role_level": role_level,
     }
-    return data_out, reasons
+
+    # When multiple LinkedIn companies match, pause and let user pick by number
+    INITIAL_SHOW = 4
+    if len(linkedin_urls) >= 2:
+        n_total = len(linkedin_urls)
+        show_count = min(INITIAL_SHOW, n_total)
+        print(f"    ✋ Multiple LinkedIn companies found ({n_total}):")
+        for i, c in enumerate(linkedin_urls[:show_count], 1):
+            print(f"       {i}. {c['title']}")
+            print(f"          {c['href']}")
+        while True:
+            if show_count >= n_total:
+                prompt = f"     Select company (1-{n_total}), or paste a LinkedIn company URL: "
+            else:
+                prompt = f"     Select company (1-{show_count}), M for more, or paste a LinkedIn company URL: "
+            choice = input(prompt).strip()
+            if "linkedin.com/company" in choice.lower():
+                canonical = _normalize_linkedin_company_url(choice)
+                if canonical:
+                    return extract_metadata_for_job_dir(job_dir, override_linkedin_url=canonical)
+                print("     That doesn't look like a valid LinkedIn company URL. Try again.")
+                continue
+            if choice.upper() == "M" and show_count < n_total:
+                for i, c in enumerate(linkedin_urls[show_count:], start=show_count + 1):
+                    print(f"       {i}. {c['title']}")
+                    print(f"          {c['href']}")
+                show_count = n_total
+                continue
+            try:
+                num = int(choice)
+                if 1 <= num <= n_total:
+                    chosen_url = linkedin_urls[num - 1]["href"]
+                    return extract_metadata_for_job_dir(job_dir, override_linkedin_url=chosen_url)
+            except ValueError:
+                pass
+            print(f"     Enter a number 1-{show_count}" + (f", M for more" if show_count < n_total else "") + ", or paste a LinkedIn company URL.")
+    linkedin_url_used = override_linkedin_url if override_linkedin_url else None
+    return data_out, reasons, linkedin_url_used
 
 
 def slugify(s: str) -> str:
@@ -337,6 +677,7 @@ def main():
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
     job_dir_col = next((col.get(h) for h in JOB_DIR_HEADERS if col.get(h)), None)
     sentinel_col = col.get(METADATA_SENTINEL_HEADER.lower())
+    linkedin_col = col.get("company linkedin profile")
     meta_cols = {header: col.get(header) for header in METADATA_COLUMNS}
     missing = [k for k, v in meta_cols.items() if not v]
     if missing:
@@ -347,12 +688,17 @@ def main():
     if not date_applied_col:
         raise SystemExit(f'Sheet must have a column named "{DATE_APPLIED_HEADER}".')
 
-    print("Metadata: overwrite all existing metadata, or only populate rows that don't have metadata yet?")
-    choice = input("  [A]ll overwrite  |  [N]ew only (default: N): ").strip().upper() or "N"
-    overwrite_all = choice == "A" or choice == "ALL"
+    company_filter = (sys.argv[1].strip() if len(sys.argv) > 1 else None) or None
+    if company_filter:
+        print(f"Company filter: only rows matching {company_filter!r}\n")
+        overwrite_all = True
+    else:
+        print("Metadata: overwrite all existing metadata, or only populate rows that don't have metadata yet?")
+        choice = input("  [A]ll overwrite  |  [N]ew only (default: N): ").strip().upper() or "N"
+        overwrite_all = choice == "A" or choice == "ALL"
     if overwrite_all:
         print("Mode: overwrite all existing metadata.\n")
-    else:
+    elif not company_filter:
         print("Mode: only populate rows missing metadata (company type empty).\n")
 
     rows = ws.get_all_values()[1:]
@@ -363,6 +709,8 @@ def main():
         sentinel_val = (row[sentinel_col - 1] or "").strip() if sentinel_col and sentinel_col <= len(row) else ""
 
         if not company:
+            continue
+        if company_filter and company_filter.lower() not in company.lower() and slugify(company) != slugify(company_filter):
             continue
         if not overwrite_all and sentinel_val:
             continue
@@ -380,15 +728,14 @@ def main():
                 job_dir = DATA_DIR / slugify(company) / date_iso
         else:
             job_dir = DATA_DIR / slugify(company) / date_iso
+        company_slug = slugify(company)
         job_txt = job_dir / "job.txt"
         if not job_txt.exists():
-            # Fallback: sheet company may differ from folder name (e.g. "Costco Wholesale" vs data/costco/); find by date
+            # Fallback: try alternate slugs for this company only (e.g. "Premier, Inc."). Never use another company's folder.
             found = None
-            if DATA_DIR.exists():
-                for company_dir in sorted(DATA_DIR.iterdir()):
-                    if not company_dir.is_dir():
-                        continue
-                    candidate = company_dir / date_iso
+            for slug_candidate in [company_slug, slugify(company.replace(",", "").replace(".", ""))]:
+                if slug_candidate and DATA_DIR.exists():
+                    candidate = DATA_DIR / slug_candidate / date_iso
                     if (candidate / "job.txt").exists():
                         found = candidate
                         break
@@ -401,10 +748,13 @@ def main():
             job_dir = job_dir.resolve() if not job_dir.is_absolute() else job_dir
             job_txt = job_dir / "job.txt"
 
+        row_linkedin = (row[linkedin_col - 1] or "").strip() if linkedin_col and linkedin_col <= len(row) else ""
+        override_linkedin = row_linkedin if row_linkedin and "linkedin.com/company" in row_linkedin.lower() else None
+
         print(f"\nRow {idx}: {company} | {date_iso}")
 
         try:
-            data, reasons = extract_metadata_for_job_dir(job_dir)
+            data, reasons, linkedin_url_used = extract_metadata_for_job_dir(job_dir, override_linkedin_url=override_linkedin)
         except Exception as e:
             print(f"  ⚠️ Failed: {e}")
             continue
@@ -413,11 +763,9 @@ def main():
             if c and json_key in data:
                 val = data.get(json_key)
                 ws.update_cell(idx, c, val if val is not None else "")
+        if linkedin_col and linkedin_url_used:
+            ws.update_cell(idx, linkedin_col, linkedin_url_used)
         print(f"  → {data.get('company_name', '')} | {data.get('role_title', '')} | {data.get('company_type', '')} | {data.get('company_size_bucket', '')} | {data.get('role_focus', '')} | {data.get('role_level', '')}")
-        print(f"     company_type: {reasons.get('company_type', '')}")
-        print(f"     company_size_bucket: {reasons.get('company_size_bucket', '')}")
-        print(f"     role_focus: {reasons.get('role_focus', '')}")
-        print(f"     role_level: {reasons.get('role_level', '')}")
 
     print("\n✅ Done\n")
 

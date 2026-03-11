@@ -32,23 +32,6 @@ source ~/.zshrc && source .venv/bin/activate
 
 ---
 
-## In Progress/Need Re-working
-
-- Base resume - can this be pulled/read from Drive instead
-- `batchfitscore`
-- `batchmetadata`
-- `genbullets`
-- `evalskills`
-- `evalintroedu`
-- `gencl`
-- `batchhm`
-- `batchsummary`
-- `cleanup_orphan_drive_resumes`
-- `batch_tech_stack_agent`
-- `fitjob <job_folder>`
-
----
-
 ## Local Commands
 
 - `archivejobs` → Archive new job postings from tracker only (no metadata or fit score). **Scripts invoked:** `archive_job` (per row without archived_at).
@@ -57,9 +40,9 @@ source ~/.zshrc && source .venv/bin/activate
 
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists. **Scripts invoked:** (none).
 
-- `batchmetadata` → Fills or overwrites metadata (role title, company type, company size bucket, role focus, role level) in the sheet. **Prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Single-job `extract_job_metadata.py` only outputs JSON**—it does not write to the sheet; only popjobs and batchmetadata write metadata to the sheet. **Scripts invoked:** `extract_job_metadata` (per row).
+- `batchmetadata [company]` → Fills or overwrites metadata (company type, company size bucket, role focus, role level) in the sheet. When **company** is provided (e.g. `batchmetadata Costco`), only that company’s rows are processed and the overwrite/new-only prompt is skipped (overwrite is used). Otherwise **prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Company type and size:** When multiple LinkedIn companies are found for a row (e.g. "Ditto"), the script pauses and lists up to 4 candidates (with **M for more**); you pick by number, paste a URL, or paste a LinkedIn company URL. The chosen URL is saved in the **COMPANY LINKEDIN PROFILE** column if that column exists; on later runs that URL is reused for that row (no prompt). For the selected profile, company type and size are taken from that LinkedIn page (Playwright). For rows without a saved or selected profile, DDG search + LLM are used. Role title and company name are set at archive time, not by batchmetadata. **Scripts invoked:** `batch_extract_metadata` (per row).
 
-- **Metadata extraction (extract_job_metadata / batchmetadata):** Company type and company size bucket are derived from **employee count** when the LLM or search finds it (&lt;50→STARTUP, 50–199→STARTUP, 200–999→SCALE-UP, 1000+→SCALE-UP; &gt;200 never STARTUP). If unknown, both default to **UNKNOWN** (no bias to STARTUP or 1000+). Web search uses neutral queries (employee count, headcount, LinkedIn). Add UNKNOWN to your sheet dropdowns for company type and company size bucket.
+- **Metadata extraction (batch_extract_metadata / batchmetadata):** Company type and company size bucket use the **user-selected LinkedIn profile** when you pick from the multi-company list (employee count and industry are read from that page via Playwright). Otherwise they are derived from DDG search + LLM (employee count → size bucket; rubric for type). Sheet dropdowns should include **UNKNOWN** for company type and company size bucket.
 
 - `batchsummary` →
 
