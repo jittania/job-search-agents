@@ -1,8 +1,8 @@
 """
-Generate resume_bullets.json for job folders for a given day (default today) from the tracker sheet.
-Overwrites existing resume_bullets.json in each folder. Runs generate_bullets_agent per row.
+Generate intro_education_recommendations.json for job folders for a given day (default today)
+from the tracker sheet. Overwrites existing file in each folder.
 
-Alias: genbullets [today|YYYY-MM-DD]
+Alias: evalintroedu [today|YYYY-MM-DD]
 """
 import os
 import subprocess
@@ -14,9 +14,8 @@ import gspread
 from dotenv import load_dotenv
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-BULLETS_SCRIPT = SCRIPT_DIR / "generate_bullets_agent.py"
+EVAL_SCRIPT = SCRIPT_DIR / "evaluate_intro_education_agent.py"
 DATA_DIR = Path("data")
-OUTPUT_FILE = "resume_bullets.json"
 DATE_APPLIED_HEADER = "date applied"
 APPLIED_VIA_HEADER = "applied via"
 APPLIED_VIA_NOT_APPLIED = "NOT APPLIED YET"
@@ -62,11 +61,10 @@ def is_job_dir_path(arg: str) -> bool:
 
 
 def main():
-    # Single job path: genbullets data/costco/2026-02-10 → overwrites if present
     if len(sys.argv) == 2 and is_job_dir_path(sys.argv[1]):
         job_dir = Path(sys.argv[1]).resolve()
-        print(f"📋 Bullets (single): {job_dir}")
-        subprocess.run(["python", str(BULLETS_SCRIPT), str(job_dir)], check=True)
+        print(f"📋 Intro/Education (single): {job_dir}")
+        subprocess.run([sys.executable, str(EVAL_SCRIPT), str(job_dir)], check=True)
         return
 
     day = date.today().isoformat()
@@ -75,7 +73,10 @@ def main():
         if arg == "today":
             day = date.today().isoformat()
         else:
-            day = arg  # expect YYYY-MM-DD
+            # Normalize to YYYY-MM-DD so sheet dates (e.g. 2/17/2026) match
+            day = parse_date_applied(arg) or arg
+            if len(day) != 10 or day[4] != "-" or day[7] != "-":
+                day = date.today().isoformat()
 
     if not DATA_DIR.exists():
         raise SystemExit("Missing data/ directory.")
@@ -113,11 +114,15 @@ def main():
             continue
         target_dirs.append(job_dir)
 
+    if not target_dirs:
+        print(f"No job folders found for that date. Note that you must pass in the date for folders you want to check (e.g. evalintroedu 2026-02-17 or evalintroedu today).")
+        return
+
     wrote = 0
     for job_dir in target_dirs:
-        print(f"📋 Bullets: {job_dir.relative_to(DATA_DIR)}")
+        print(f"📋 Intro/Education: {job_dir.relative_to(DATA_DIR)}")
         subprocess.run(
-            ["python", str(BULLETS_SCRIPT), str(job_dir)],
+            [sys.executable, str(EVAL_SCRIPT), str(job_dir)],
             check=True,
         )
         wrote += 1

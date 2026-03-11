@@ -1,11 +1,9 @@
 """
-Evaluate the TECHNICAL SKILLS section of the resume for a specific job. Recommendations are
-tailored to this job description: what to omit (low relevance for this role) and what to add
-(JD-relevant skills the candidate has but didn't list, or that strengthen the match).
+Evaluate the TECHNICAL SKILLS section of the resume for a specific job. Writes
+<job_folder>/skills_recommendations.json (omit/add recommendations tailored to the JD).
+No args or today/YYYY-MM-DD delegates to batch script.
 
-Writes <job_folder>/skills_recommendations.json.
-- No args or "today" or YYYY-MM-DD → batch for that day (delegates to batch script).
-- One arg that is a job folder path → single job.
+Alias: evalskills [today|YYYY-MM-DD] or evalskills data/<company>/<date>
 """
 import json
 import os
@@ -17,7 +15,6 @@ from pathlib import Path
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-RESUME_PATH = Path("data/resume.txt")
 OUTPUT_FILE = "skills_recommendations.json"
 
 
@@ -37,6 +34,36 @@ def fix_trailing_commas(json_str: str) -> str:
     return re.sub(r",(\s*[}\]])", r"\1", json_str)
 
 
+def fix_literal_newlines_in_strings(json_str: str) -> str:
+    """Replace unescaped newlines inside double-quoted string values with space (invalid in JSON)."""
+    result = []
+    i = 0
+    in_string = False
+    escape_next = False
+    while i < len(json_str):
+        c = json_str[i]
+        if escape_next:
+            result.append(c)
+            escape_next = False
+        elif c == "\\" and in_string:
+            result.append(c)
+            escape_next = True
+        elif c == '"' and not escape_next:
+            in_string = not in_string
+            result.append(c)
+        elif c == "\n" and in_string:
+            result.append(" ")
+        else:
+            result.append(c)
+        i += 1
+    return "".join(result)
+
+
+def fix_escaped_apostrophes(json_str: str) -> str:
+    """Replace \\' with ' (invalid in JSON; apostrophes need no escape inside double-quoted strings)."""
+    return json_str.replace("\\'", "'")
+
+
 def parse_json(raw: str) -> dict:
     raw = (raw or "").strip()
     if not raw:
@@ -48,6 +75,8 @@ def parse_json(raw: str) -> dict:
         raise ValueError(f"No JSON object found (first 200 chars: {raw[:200]!r})")
     json_str = raw[start : end + 1]
     json_str = fix_trailing_commas(json_str)
+    json_str = fix_escaped_apostrophes(json_str)
+    json_str = fix_literal_newlines_in_strings(json_str)
     try:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
@@ -79,34 +108,42 @@ def main():
 
     load_dotenv()
     job_txt = job_dir / "job.txt"
-    if not RESUME_PATH.exists():
-        print(f"Resume not found at {RESUME_PATH}. Run from project root.", file=sys.stderr)
+    sys.path.insert(0, str(script_dir))
+    from resume_loader import get_resume_text
+    try:
+        resume_text = get_resume_text()
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
         raise SystemExit(1)
 
     job_text = job_txt.read_text(encoding="utf-8")
-    resume_text = RESUME_PATH.read_text(encoding="utf-8")
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     prompt = f"""
-You are evaluating the candidate's TECHNICAL SKILLS section for a specific job. Recommend changes so the skills list is better tailored to THIS role.
+You are evaluating the candidate's TECHNICAL SKILLS section for a specific job. The candidate's base resume is TOO LONG (often by nearly half a page). Your main job is to recommend what to CUT so the skills section is shorter and tightly aligned to THIS role.
 
-Your task:
-1. **Skills to consider omitting** — From the current TECHNICAL SKILLS section, list any that are low relevance for THIS job, redundant, or that dilute focus for this role. For each, give a short reason tied to the job description.
-2. **Skills to consider adding** — Skills mentioned in the job description or strongly implied by it that the candidate clearly has (from experience/projects on the resume) but did NOT list in TECHNICAL SKILLS. Also suggest common pairings for this role they could add if they have them. For each, give a short reason (e.g. "JD asks for X" or "Used in Project Y; relevant to this role"). Only suggest skills they can honestly claim from the resume.
+**Scope of TECHNICAL SKILLS:** The TECHNICAL SKILLS section is the block that starts with the line "TECHNICAL SKILLS" and ends right before the line "PROFESSIONAL EXPERIENCE". It includes every subsection and line in between: AI-Augmented Development, Programming Languages, Frameworks & Libraries, Databases (if present), Tools & Cloud Services, Development Practices, and any other lines. You MUST review every one of these lines—do not skip Development Practices or any subsection.
 
-Return ONLY valid JSON with this schema (no markdown, no code fences). Escape double quotes in strings. No newlines inside string values.
+Your tasks:
+1. **Skills to consider omitting** — Consider ONLY the TECHNICAL SKILLS block (as defined above). List every skill or phrase from that block that is low relevance for THIS job, redundant, or dilutes focus. CRITICAL: Only list items that actually appear in the TECHNICAL SKILLS block. Use the exact phrase as it appears there (e.g. "PHP", "Kibana", "REST APIs"). Do NOT recommend omitting anything that appears only in the rest of the resume (e.g. in experience bullets)—if a tech appears in bullets but not in TECHNICAL SKILLS, do not list it under omit. Aim for 8–18 items. For each item include:
+   - "skill": exact phrase as it appears in the TECHNICAL SKILLS block.
+   - "reason": one sentence tied to the job description (why it's safe to cut for this role).
+   - "priority": one of "cut_first", "recommended", or "optional".
+2. **Skills to consider adding** — Skills the JD explicitly or strongly implies that the candidate clearly has (from experience/projects on the resume) but did NOT list in the TECHNICAL SKILLS block. CRITICAL: Before suggesting any add, verify that the skill does NOT already appear anywhere in the TECHNICAL SKILLS block—check every line including Programming Languages, Tools & Cloud Services, Development Practices, etc. (e.g. if SQL or AWS already appear there, do not suggest adding them). Only suggest skills they can honestly claim. 2–6 items, or empty array if none.
+
+Return ONLY valid JSON with this schema (no markdown, no code fences). Escape double quotes in strings with backslash; do not escape apostrophes (e.g. write "candidate's" not "candidate\'s"). Do not use double quotes inside string values—rephrase or use apostrophes (e.g. "the candidate's experience" not "the \"best\" option"). Do not include literal newlines inside any string value; use a space or keep the sentence on one line.
 
 {{
   "skills_to_consider_omitting": [
-    {{ "skill": "<exact phrase from resume>", "reason": "<why for this job>" }}
+    {{ "skill": "<exact phrase from resume>", "reason": "<why for this job>", "priority": "cut_first" or "recommended" or "optional" }}
   ],
   "skills_to_consider_adding": [
     {{ "skill": "<skill name>", "reason": "<why for this job / where on resume>" }}
   ]
 }}
 
-If there are no suggestions for one category, use an empty array. Be concise; 3–6 items per category is enough.
+If there are no suggestions for adding, use an empty array. For omitting, be THOROUGH but only from the TECHNICAL SKILLS block: list every skill in that block that is not clearly relevant to this job. Do not list skills that appear only in experience bullets.
 
 JOB DESCRIPTION:
 {job_text[:30000]}
@@ -117,7 +154,7 @@ RESUME:
 
     msg = client.messages.create(
         model="claude-3-haiku-20240307",
-        max_tokens=1024,
+        max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -131,6 +168,33 @@ RESUME:
     for key in ("skills_to_consider_omitting", "skills_to_consider_adding"):
         if key not in data or not isinstance(data[key], list):
             data[key] = []
+
+    # #region agent log
+    _log_path = job_dir.parent.parent / ".cursor" / "debug-6857d3.log" if job_dir.parent.name and job_dir.parent.parent.name else Path(".cursor/debug-6857d3.log")
+    try:
+        _log_path = Path(".cursor/debug-6857d3.log")
+        omitting = data.get("skills_to_consider_omitting") or []
+        job_lower = (job_text or "").lower()
+        omit_in_jd = []
+        for item in omitting:
+            skill = (item.get("skill") or "").strip()
+            if skill and skill.lower() in job_lower:
+                omit_in_jd.append(skill)
+        cut_first = sum(1 for o in omitting if (o.get("priority") or "").strip().lower() == "cut_first")
+        recommended = sum(1 for o in omitting if (o.get("priority") or "").strip().lower() == "recommended")
+        optional = sum(1 for o in omitting if (o.get("priority") or "").strip().lower() == "optional")
+        with open(_log_path, "a", encoding="utf-8") as _f:
+            import time as _time
+            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H2", "location": "evaluate_resume_skills_agent.py", "message": "evalskills omit vs JD", "data": {"omit_count": len(omitting), "omit_skills_also_in_jd_count": len(omit_in_jd), "omit_skills_also_in_jd_sample": omit_in_jd[:8]}, "timestamp": int(_time.time() * 1000)}) + "\n")
+            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H5", "location": "evaluate_resume_skills_agent.py", "message": "evalskills priority", "data": {"cut_first": cut_first, "recommended": recommended, "optional": optional}, "timestamp": int(_time.time() * 1000)}) + "\n")
+    except Exception as _e:
+        try:
+            with open(Path(".cursor/debug-6857d3.log"), "a", encoding="utf-8") as _f:
+                import time as _time
+                _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H2,H5", "location": "evaluate_resume_skills_agent.py", "message": "evalskills log error", "data": {"error": str(_e)}, "timestamp": int(_time.time() * 1000)}) + "\n")
+        except Exception:
+            pass
+    # #endregion
 
     out_path = job_dir / OUTPUT_FILE
     out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")

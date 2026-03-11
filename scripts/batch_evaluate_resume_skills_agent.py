@@ -18,6 +18,8 @@ EVAL_SKILLS_SCRIPT = SCRIPT_DIR / "evaluate_resume_skills_agent.py"
 DATA_DIR = Path("data")
 OUTPUT_FILE = "skills_recommendations.json"
 DATE_APPLIED_HEADER = "date applied"
+APPLIED_VIA_HEADER = "applied via"
+APPLIED_VIA_NOT_APPLIED = "NOT APPLIED YET"
 
 
 def slugify(s: str) -> str:
@@ -100,6 +102,11 @@ def main():
         company = (row[company_col - 1] or "").strip() if company_col <= len(row) else ""
         if not company:
             continue
+        if applied_via_col and applied_via_col <= len(row):
+            applied_via = (row[applied_via_col - 1] or "").strip()
+            if applied_via != APPLIED_VIA_NOT_APPLIED:
+                print(f"  ⏭️ Skipping row {idx}: {company} / {date_iso} (APPLIED VIA = {applied_via!r})")
+                continue
         job_dir = DATA_DIR / slugify(company) / date_iso
         if not (job_dir / "job.txt").exists():
             continue

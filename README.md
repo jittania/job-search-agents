@@ -10,7 +10,7 @@ source ~/.zshrc && source .venv/bin/activate
 
 1. Save potential jobs to tracker (links and date columns only).
 
-2. Just use `archivejobs` for now ~~Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or `batchmetadata` as needed (each prompts: overwrite all or new only).~~
+2. Just use `archivejobs` for now ~~Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or~~ `batchmetadata` as needed (each prompts: overwrite all or new only).
 
 3. ~~`fitjob <job_folder>` for single-job fit + keyword extraction (`fit.json`).~~
 
@@ -78,6 +78,8 @@ source ~/.zshrc && source .venv/bin/activate
 - `dupcl [YYYY-MM-DD]` → For each job applied on that date (default: today), creates a blank Word document and uploads it to the cover letters Drive folder with the same naming: `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>_CL.docx`. Use `gencl` to fill them with AI-generated cover letters. **Scripts invoked:** (none).
 
 - `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase). **Scripts invoked:** (none).
+
+**Resume source:** Fit score, cover letters, bullets, evalskills, and evalintroedu read your resume from **Google Docs** only. Set `RESUME_GOOGLE_DOC_ID` or `RESUME_GOOGLE_DOC_URL` in `.env` (same OAuth as dupres: `credentials.json` / `.drive_oauth_token.json`). If the Doc can't be fetched, the script exits with an error.
 
 - `evalskills [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your TECHNICAL SKILLS section for that job and writes `skills_recommendations.json` in the job folder (omit/add recommendations tailored to the JD). No argument = today. Single job: `evalskills data/<company>/<date>` overwrites that folder's `skills_recommendations.json`. **Scripts invoked:** `evaluate_resume_skills_agent` (per job).
 

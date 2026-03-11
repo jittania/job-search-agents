@@ -24,6 +24,8 @@ from googleapiclient.http import MediaIoBaseUpload
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path("data")
 DATE_APPLIED_HEADER = "date applied"
+APPLIED_VIA_HEADER = "applied via"
+APPLIED_VIA_NOT_APPLIED = "NOT APPLIED YET"
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -101,20 +103,20 @@ def make_docx_from_text(text: str) -> bytes:
     return buf.read()
 
 
-def generate_letter(job_dir: Path, client: Anthropic) -> str:
+def generate_letter(job_dir: Path, client: Anthropic, resume_text: str) -> str:
     job_txt = job_dir / "job.txt"
     url_txt = job_dir / "url.txt"
-    resume_path = Path("data/resume.txt")
     job_text = job_txt.read_text(encoding="utf-8")
-    resume_text = resume_path.read_text(encoding="utf-8")
     url = url_txt.read_text(encoding="utf-8").strip() if url_txt.exists() else ""
     prompt = f"""Write a concise, confident cover letter tailored to this job.
+
+CRITICAL — Only reference experience and technologies that appear on the resume. Do not mention any technologies, tools, or responsibilities from the job description (e.g. ASP.NET, C#, Windows Server) unless they explicitly appear on the resume. If the JD asks for something the resume does not show, do not claim it—emphasize the candidate's actual skills and experience instead.
 
 Constraints:
 - 220–320 words
 - 3 short paragraphs max
 - No buzzword soup
-- No claims you can't support from the resume
+- No claims you can't support from the resume; only mention tech and experience that is on the resume
 - Reference the company/role naturally (if the JD provides it)
 - End with a simple call to action
 - Output plain text ONLY
@@ -136,6 +138,13 @@ RESUME:
     letter = (msg.content[0].text or "").strip()
     if not letter:
         raise RuntimeError("Claude returned empty cover letter")
+    # Strip any intro line the model may have added
+    letter = re.sub(
+        r"^Here is (a |an )?(concise,? )?(confident,? )?cover letter (tailored to|for) .+?[.:]\s*\n*",
+        "",
+        letter,
+        flags=re.IGNORECASE,
+    ).strip()
     return letter
 
 
@@ -239,6 +248,11 @@ def main():
         role_title = (row[role_title_col - 1] or "").strip() if role_title_col <= len(row) else "Role"
         if not company:
             continue
+        if applied_via_col and applied_via_col <= len(row):
+            applied_via = (row[applied_via_col - 1] or "").strip()
+            if applied_via != APPLIED_VIA_NOT_APPLIED:
+                print(f"  ⏭️ Skipping row {idx}: {company} / {date_iso} (APPLIED VIA = {applied_via!r})")
+                continue
         job_dir = DATA_DIR / slugify(company) / date_iso
         if not (job_dir / "job.txt").exists():
             continue
@@ -249,6 +263,12 @@ def main():
         return
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from resume_loader import get_resume_text
+    try:
+        resume_text = get_resume_text()
+    except FileNotFoundError as e:
+        raise SystemExit(str(e))
     drive = build("drive", "v3", credentials=get_drive_credentials())
     # List existing files in folder to support update-by-name
     existing = {}
@@ -267,10 +287,10 @@ def main():
 
     wrote = 0
     for date_iso, company, role_title, job_dir in target_rows:
-        name = f"{date_iso}__JittaniaSmith_{to_camel_case(company)}_{to_camel_case(role_title)}.docx"
-        print(f"📄 Cover letter: {job_dir.relative_to(DATA_DIR)}")
+        name = f"{date_iso}__JittaniaSmith_{to_camel_case(company)}_{to_camel_case(role_title)}_CL.docx"
+        print(f"\n📄 Cover letter: {job_dir.relative_to(DATA_DIR)}\n")
         try:
-            letter = generate_letter(job_dir, client)
+            letter = generate_letter(job_dir, client, resume_text)
         except Exception as e:
             print(f"  ⚠️ Generate failed: {e}")
             continue

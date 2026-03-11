@@ -22,10 +22,11 @@ def main():
 
     job_dir = Path(sys.argv[1])
     job_txt = job_dir / "job.txt"
-    resume_txt = Path("data") / "resume.txt"
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from resume_loader import get_resume_text
 
     job_text = job_txt.read_text(encoding="utf-8")
-    resume_text = resume_txt.read_text(encoding="utf-8")
+    resume_text = get_resume_text()
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 

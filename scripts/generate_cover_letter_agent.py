@@ -34,28 +34,32 @@ def main():
     if not job_txt.exists():
         raise SystemExit("Missing job.txt")
 
-    resume_path = Path("data/resume.txt")
-    if not resume_path.exists():
-        raise SystemExit("Missing data/resume.txt")
-
     load_dotenv()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from resume_loader import get_resume_text
+    try:
+        resume_text = get_resume_text()
+    except FileNotFoundError as e:
+        raise SystemExit(str(e))
+
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     job_text = job_txt.read_text(encoding="utf-8")
-    resume_text = resume_path.read_text(encoding="utf-8")
     url = url_txt.read_text(encoding="utf-8").strip() if url_txt.exists() else ""
 
     prompt = f"""
         Write a concise, confident cover letter tailored to this job.
 
+        CRITICAL — Only reference experience and technologies that appear on the resume. Do not mention any technologies, tools, or responsibilities from the job description (e.g. ASP.NET, C#, Windows Server) unless they explicitly appear on the resume. If the JD asks for something the resume does not show, do not claim it—emphasize the candidate's actual skills and experience instead.
+
         Constraints:
         - 220–320 words
         - 3 short paragraphs max
         - No buzzword soup
-        - No claims you can't support from the resume
+        - No claims you can't support from the resume; only mention tech and experience that is on the resume
         - Reference the company/role naturally (if the JD provides it)
         - End with a simple call to action
-        - Output plain text ONLY
+        - Output plain text ONLY. Do not include any introductory or meta sentence (e.g. "Here is a cover letter tailored to..."); start directly with the first paragraph of the letter.
 
         JOB POSTING URL (if available):
         {url}
@@ -76,6 +80,14 @@ def main():
     letter = msg.content[0].text.strip()
     if not letter:
         raise SystemExit("Model returned empty output")
+
+    # Strip any intro line the model may have added (e.g. "Here is a concise, confident cover letter tailored to...")
+    letter = re.sub(
+        r"^Here is (a |an )?(concise,? )?(confident,? )?cover letter (tailored to|for) .+?[.:]\s*\n*",
+        "",
+        letter,
+        flags=re.IGNORECASE,
+    ).strip()
 
     out_path.write_text(letter + "\n", encoding="utf-8")
     print(f"\n✍️ Wrote {out_path}\n")

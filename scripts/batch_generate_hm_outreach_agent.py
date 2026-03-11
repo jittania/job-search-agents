@@ -35,11 +35,12 @@ def main():
         day = sys.argv[1]
 
     data_dir = Path("data")
-    resume_path = data_dir / "resume.txt"
-    if not resume_path.exists():
-        raise SystemExit("Missing data/resume.txt")
-
-    resume_text = resume_path.read_text(encoding="utf-8")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from resume_loader import get_resume_text
+    try:
+        resume_text = get_resume_text()
+    except FileNotFoundError as e:
+        raise SystemExit(str(e))
 
     wrote = 0
     skipped = 0

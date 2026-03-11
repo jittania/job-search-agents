@@ -8,3 +8,7 @@ credentials.json
 
 # Local data artifacts (job archives, resumes, outputs)
 data/
+TODO.md
+
+# Cursor / IDE
+.cursor/

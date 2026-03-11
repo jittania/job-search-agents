@@ -1,7 +1,8 @@
 """
 Extract job metadata for sheet columns: role title, company type, company size bucket, role focus, role level.
-Company type is classified by rubric (search + job posting; employee count alone must not determine it).
-Company size bucket is derived from employee count when stated, else from LLM. Outputs JSON only (no sheet write).
+Uses neutral web search (employee count / headcount); derives company_type and company_size_bucket from
+employee count when available, else LLM fallback. Outputs JSON only (no sheet write). Sheet dropdowns
+should include UNKNOWN.
 
 Invoked by: popjobs, batchmetadata.
 """
