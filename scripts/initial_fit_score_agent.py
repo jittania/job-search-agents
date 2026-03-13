@@ -383,6 +383,8 @@ def main():
         print(f"Missing job file: {job_txt}", file=sys.stderr)
         raise SystemExit(2)
 
+    job_text = job_txt.read_text(encoding="utf-8")
+
     if len(sys.argv) >= 3:
         resume_path = Path(sys.argv[2]).resolve()
         if not resume_path.exists():
@@ -409,7 +411,8 @@ def main():
     job_hash = _hash_content(job_text)
     resume_hash = _hash_content(resume_text)
     print(f"[fit-score] job_path={job_txt.resolve()!r} job_hash={job_hash}", file=sys.stderr)
-    print(f"[fit-score] resume_path={resume_path.resolve()!r if resume_path else 'Google Doc or default file'} resume_hash={resume_hash}", file=sys.stderr)
+    resume_path_str = resume_path.resolve() if resume_path else "Google Doc or default file"
+    print(f"[fit-score] resume_path={resume_path_str!r} resume_hash={resume_hash}", file=sys.stderr)
     print(f"[fit-score] job_text (first 300 chars): {job_text[:300]!r}", file=sys.stderr)
     print(f"[fit-score] resume_text (first 300 chars): {resume_text[:300]!r}", file=sys.stderr)
 

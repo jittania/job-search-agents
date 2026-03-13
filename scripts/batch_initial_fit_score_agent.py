@@ -165,7 +165,7 @@ def main():
             print(f"\n⏭️ Skipping row {idx}: no archived job at {job_dir}")
             continue
 
-        print(f"Scoring row {idx}: {company} | {date_iso}")
+        print(f"\nScoring row {idx}: {company} | {date_iso}")
 
         result = subprocess.run(
             ["python", str(INITIAL_FIT_SCRIPT), str(job_dir)],
