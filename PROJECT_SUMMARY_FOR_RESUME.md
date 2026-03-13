@@ -1,4 +1,4 @@
-# Project Summary: Job Search Automation (for Resume / ChatGPT)
+# Project Summary: RoleSynth (for Resume / ChatGPT)
 
 Use this document to brief ChatGPT (or similar) so it can draft a resume section (e.g. "Personal Project" or "Side Project") that accurately reflects the tech stack and what each tool was used for.
 
@@ -6,7 +6,7 @@ Use this document to brief ChatGPT (or similar) so it can draft a resume section
 
 ## One-paragraph overview
 
-This project is a **Python-based job-search automation pipeline** that: (1) reads job links and dates from a **Google Sheets** tracker; (2) **archives** job postings from the web (including JS-rendered pages and PDF snapshots) into a local `data/` tree; (3) uses **Anthropic Claude** to extract metadata (company type, size, role focus, level—with **Playwright**-scraped LinkedIn company pages when the user selects a profile), run deterministic initial fit scoring (LLM extracts requirements, Python computes subscores from resume text), and generate tailored resume bullets (with placement: section, role, replace/append), cover letters, and hiring-manager outreach; (4) loads the **resume** from a **Google Doc** via **Google Drive API** (OAuth export to plain text) when configured, so fit score, cover letters, bullets, and eval scripts use a single source; (5) syncs with **Google Drive** (OAuth) to duplicate resume templates and upload/generate cover letter `.docx` files; and (6) supports optional **company filters** for batch metadata and batch fit score (e.g. `batchmetadata Costco`, `batchfitscore Costco`), analytics (follow-up detection, funnel stats), and cleanup of orphan `data/` folders. All secrets and config are loaded via **python-dotenv** from a `.env` file. The codebase is **Python** scripts under `scripts/`, invoked via shell aliases (e.g. `batchmetadata`, `batchfitscore`, `genbullets today`, `gencl today`, `dupres`, `dupcl`, `cleanup`). Development was done in **Cursor**.
+**RoleSynth** is a Python-based pipeline that: (1) reads job links and dates from a **Google Sheets** tracker; (2) **archives** job postings from the web (including JS-rendered pages and PDF snapshots) into a local `data/` tree; (3) uses **Anthropic Claude** to extract metadata (company type, size, role focus, level—with **Playwright**-scraped LinkedIn company pages when the user selects a profile), run deterministic initial fit scoring (LLM extracts requirements, Python computes subscores from resume text), and generate tailored resume bullets (with placement: section, role, replace/append), cover letters, and hiring-manager outreach; (4) loads the **resume** from a **Google Doc** via **Google Drive API** (OAuth export to plain text) when configured, so fit score, cover letters, bullets, and eval scripts use a single source; (5) syncs with **Google Drive** (OAuth) to duplicate resume templates and upload/generate cover letter `.docx` files; and (6) supports optional **company filters** for batch metadata and batch fit score (e.g. `batchmetadata Costco`, `batchfitscore Costco`), analytics (follow-up detection, funnel stats), and cleanup of orphan `data/` folders. All secrets and config are loaded via **python-dotenv** from a `.env` file. The codebase is **Python** scripts under `scripts/`, invoked via shell aliases (e.g. `batchmetadata`, `batchfitscore`, `genbullets today`, `gencl today`, `dupres`, `dupcl`, `cleanup`). Development was done in **Cursor**.
 
 ---
 
@@ -104,7 +104,7 @@ Every item from the README **Tools** section is listed below with explicit, cite
 ### Cursor
 
 - **Purpose:** IDE used for development and editing.
-- **Where used:** The project was developed and maintained in Cursor (editor/environment). No runtime dependency; only noted so the resume can accurately say the project was built using Cursor if desired.
+- **Where used:** RoleSynth was developed and maintained in Cursor (editor/environment). No runtime dependency; only noted so the resume can accurately say the project was built using Cursor if desired.
 
 ---
 
@@ -115,4 +115,4 @@ Every item from the README **Tools** section is listed below with explicit, cite
 - **Batch vs single-job / company filter:** Many commands support "batch by date" (e.g. all jobs for today from the sheet) and "single job" (e.g. `genbullets data/company/2026-02-16`). **batchmetadata** and **batchfitscore** also accept an optional company name (e.g. `batchmetadata Costco`, `batchfitscore Costco`) to process only rows matching that company and skip the overwrite/new-only prompt (overwrite is used). Cleanup is driven by the set of (company, date) still present in the sheet.
 - **Exit codes:** The archive script exits with code 2 when the posting is unavailable (e.g. 4xx/5xx or "job no longer available" text); the populate script catches this and skips the row instead of failing the whole run.
 
-You can hand this file to ChatGPT and ask it to write a concise resume bullet or short paragraph that highlights the project and cites the tools accurately.
+You can hand this file to ChatGPT and ask it to write a concise resume bullet or short paragraph that highlights RoleSynth and cites the tools accurately.

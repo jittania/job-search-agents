@@ -1,4 +1,4 @@
-# TBD Name: RoleSynth
+# RoleSynth
 
 ## Daily Usage
 
@@ -109,7 +109,7 @@ source ~/.zshrc && source .venv/bin/activate
 
 ✅ Implemented AI-based JD↔resume fit scoring and keyword extraction, producing structured artifacts (`fit.json`)
 
-✅ Designed and implemented an end-to-end AI-assisted job search automation pipeline in Python
+✅ Designed and implemented RoleSynth, an end-to-end AI-assisted pipeline in Python
 
 ✅ Integrated cloud LLM APIs (Anthropic / Claude) securely using environment variables and virtual environments
 
