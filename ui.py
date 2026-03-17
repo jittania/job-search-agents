@@ -108,6 +108,7 @@ def page_pipeline():
                 st.error(f"Script not found: {script_fit}")
 
     st.divider()
+    st.warning("⚠️ If this is the first time running a company through Batch Metadata, run it in the terminal instead. The UI can't respond to the LinkedIn company picker prompt.")
     company_meta = st.text_input("Company filter for **Batch Metadata** (leave blank for all)", key="pipe_batch_metadata_company", placeholder="e.g. Costco")
     script_meta = SCRIPTS_DIR / "batch_extract_metadata.py"
     if company_meta and company_meta.strip():
