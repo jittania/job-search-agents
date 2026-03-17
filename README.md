@@ -3,32 +3,32 @@
 ## Daily Usage
 
 ```
-source ~/.zshrc && source .venv/bin/activate
+source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 ```
 
 ### **Finding/Isolating Job Postings**
 
 1. Save potential jobs to tracker (links and date columns only).
 
-2. Just use `archivejobs` for now ~~Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or~~ `batchmetadata` as needed (each prompts: overwrite all or new only).
+2. Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or `batchmetadata` as needed (each prompts: overwrite all or new only).
 
-3. ~~`fitjob <job_folder>` for single-job fit + keyword extraction (`fit.json`).~~
+3. `fitjob <job_folder>` for single-job fit + keyword extraction (`fit.json`).
 
 ### **Applying**
 
 1. `dupres` — batch duplicate base resume; `dupcl` — create blank cover letter docs in Drive.
 
-~~2. `genbullets && evalskills && evalintroedu` — tailored resume bullets and skills/intro/education recommendations; then `gencl` — cover letters to Drive~~
+2. `genbullets && evalskills && evalintroedu` — tailored resume bullets and skills/intro/education recommendations; then `gencl` — cover letters to Drive
 
-~~3. `batchhm` — hiring manager outreach drafts.~~
+3. `batchhm` — hiring manager outreach drafts.
 
-~~4. Add company research: create `sources.txt` in job folder, then `batchsummary`.~~
+4. Add company research: create `sources.txt` in job folder, then `batchsummary`.
 
-5. `cleanup` (local data); ~~`cleanupres` (Drive)~~
+5. `cleanup` (local data); `cleanupres` (Drive)
 
-~~6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.~~
+6. Identify follow-ups with `followups 10`; `funnelstats` for funnel metrics.
 
-~~7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.~~
+7. Single-job: `techstack data/<company>/<date>` for tech stack; `fitjob data/<company>/<date>` for fit scoring.
 
 ---
 
