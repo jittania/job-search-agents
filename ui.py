@@ -49,6 +49,7 @@ def _pipe_button(label: str, script_path: Path, args: list, stdin_text: str | No
     else:
         clicked = st.button(label, key=key)
     if clicked:
+        st.info("This may take several minutes depending on the number of rows.")
         with st.spinner(f"Running {label}…"):
             code, out, err = run_cmd(script_path, args, stdin_text)
         if code != 0:
@@ -91,6 +92,7 @@ def page_pipeline():
             st.caption("Run initial fit scoring for all (new only or overwrite).")
         if batch_fit_clicked:
             if script_fit.exists():
+                st.info("This may take several minutes depending on the number of rows.")
                 with st.spinner("Running Batch Fit Score…"):
                     code, out, err = run_cmd(script_fit, [], stdin_fit)
                 if code != 0:
@@ -123,6 +125,7 @@ def page_pipeline():
             st.caption("Extract metadata for all (new only or overwrite).")
         if batch_meta_clicked:
             if script_meta.exists():
+                st.info("This may take several minutes depending on the number of rows.")
                 with st.spinner("Running Batch Metadata…"):
                     code, out, err = run_cmd(script_meta, [], stdin_meta)
                 if code != 0:
@@ -183,6 +186,7 @@ def page_pipeline():
     if cleanup_clicked:
         script_cleanup = SCRIPTS_DIR / "cleanup_orphan_job_folders.py"
         if script_cleanup.exists():
+            st.info("This may take several minutes depending on the number of rows.")
             with st.spinner("Running Cleanup…"):
                 code, out, err = run_cmd(script_cleanup, args_cleanup, None)
             if code != 0:
@@ -211,6 +215,7 @@ def page_analytics():
         with c2:
             st.caption("Show funnel stats (applied → interviews → offers).")
         if funnel_clicked:
+            st.info("This may take several minutes depending on the number of rows.")
             with st.spinner("Running Funnel Stats…"):
                 code, out, err = run_cmd(script_funnel, [], None)
             if code != 0:
@@ -236,6 +241,7 @@ def page_analytics():
         st.caption("List applications needing follow-up (N+ days since applied).")
     if followups_clicked:
         if script_followups.exists():
+            st.info("This may take several minutes depending on the number of rows.")
             with st.spinner("Running Identify Follow-ups…"):
                 code, out, err = run_cmd(script_followups, [str(int(n_followups))], None)
             if code != 0:
