@@ -111,6 +111,8 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 ✅ Designed and implemented RoleSynth, an end-to-end AI-assisted pipeline in Python
 
+✅ Added a Streamlit dashboard to run pipeline steps and analytics from the browser instead of the CLI
+
 ✅ Integrated cloud LLM APIs (Anthropic / Claude) securely using environment variables and virtual environments
 
 ✅ Built deterministic ingestion pipelines to archive dynamic web content (HTML, plaintext, PDF) using Playwright and BeautifulSoup
@@ -140,6 +142,7 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 ## Tools
 
 - Python
+- Streamlit — web UI to run pipeline steps and analytics from the browser (e.g. `streamlit run ui.py`)
 - Anthropic / Claude API
 - Playwright — headless browser automation for JS-rendered pages + PDF generation
 - BeautifulSoup — HTML parsing and text extraction
@@ -149,3 +152,4 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 - python-docx — generate and upload cover letter .docx files
 - python-dotenv — load `.env` for secrets and config
 - Cursor
+- Perplexity
