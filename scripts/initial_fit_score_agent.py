@@ -49,7 +49,11 @@ HARD_REQUIRED_TECH_PATTERNS = [
     ("servlet", 25), ("windows server", 25),
 ]
 SENIORITY_CAP_YEARS_GAP = 3
-SENIORITY_CAP_MAX_TOTAL = 65
+SENIORITY_CAP_MAX_TOTAL = 55
+# Bigger experience-gap penalty so overly senior roles are ruled out earlier.
+SENIORITY_GAP_PENALTY_BASE = 15
+SENIORITY_GAP_PENALTY_PER_YEAR = 10
+SENIORITY_GAP_PENALTY_MAX = 45
 TWO_PLUS_REQUIRED_MISSING_CAP = 55
 
 EXIT_SECURITY_CLEARANCE = 3
@@ -261,7 +265,7 @@ def _score_deterministic(job_struct: dict, resume_struct: dict, normalized_resum
     if seniority_req is not None and years_est is not None and years_est < seniority_req - 1:
         gap = seniority_req - years_est
         if gap >= 2:
-            pt = min(25, 10 + 5 * int(gap))
+            pt = min(SENIORITY_GAP_PENALTY_MAX, SENIORITY_GAP_PENALTY_BASE + SENIORITY_GAP_PENALTY_PER_YEAR * int(gap))
             penalties.append({"reason": f"Level gap: {seniority_req}+ years required, ~{years_est} on resume", "points": pt})
             if gap >= SENIORITY_CAP_YEARS_GAP:
                 hard_gates_triggered.append(f"Seniority gap {gap} years (required {seniority_req}+, resume ~{years_est}) -> cap total at {SENIORITY_CAP_MAX_TOTAL}")
