@@ -12,6 +12,13 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 2. Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or `batchmetadata` as needed (each prompts: overwrite all or new only).
 
+        Note: If you get a "token has been expired or revoked" error from running `batchfitscore`, try:
+        ```
+        cd <path>>/job-search-agents
+        rm .drive_oauth_token.json
+        ```
+        and run `batchfitscore` again, which should trigger the browser-based sign-in again and write a new token.
+
 3. `fitjob <job_folder>` for single-job fit + keyword extraction (`fit.json`).
 
 ### **Applying**
