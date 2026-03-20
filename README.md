@@ -23,9 +23,9 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 ### **Applying**
 
-1. `dupres` — batch duplicate base resume; `dupcl` — create blank cover letter docs in Drive.
+1. `dupres` — batch duplicate base resume; `makecl` — create blank cover letter docs in Drive.
 
-2. `genbullets && evalskills && evalintroedu` — tailored resume bullets and skills/intro/education recommendations; then `gencl` — cover letters to Drive
+2. `genbullets && evalskills && evalintroedu` — tailored resume bullets and skills/intro/education recommendations; then `popcl` — cover letters to Drive
 
 3. `batchhm` — hiring manager outreach drafts.
 
@@ -80,7 +80,7 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `cleanup` → Deletes `data/<company>/<date>/` folders that no longer have a row in the tracker (e.g. you deleted the row or didn't apply). Use `cleanup --dry-run` to list what would be removed without deleting. **Scripts invoked:** (none).
 
-- `dupcl [YYYY-MM-DD]` → For each job applied on that date (default: today), creates a blank Word document and uploads it to the cover letters Drive folder with the same naming: `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>_CL.docx`. Use `gencl` to fill them with AI-generated cover letters. **Scripts invoked:** (none).
+- `makecl [YYYY-MM-DD]` → For each job applied on that date (default: today), creates a blank Word document and uploads it to the cover letters Drive folder with the same naming: `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>_CL.docx`. Use `popcl` to fill them with AI-generated cover letters. **Scripts invoked:** (none).
 
 - `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase). **Scripts invoked:** (none).
 
@@ -98,7 +98,7 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for jobs from the tracker sheet for that day (date applied + company), overwriting existing resume_bullets.json if present. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder. **Scripts invoked:** `generate_bullets_agent` (per job).
 
-- `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
+- `popcl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as makecl). No argument = today. Single job: `popcl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
 
 - `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job`, `extract_job_metadata` (per new row).
 
@@ -136,7 +136,7 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 ✅ Designed CLI tooling and shell aliases for repeatable, low-friction daily workflows
 
-✅ Added sheet-based batch commands so genbullets and gencl run only for rows still in the tracker (e.g. after deleting low-fit rows)
+✅ Added sheet-based batch commands so genbullets and popcl run only for rows still in the tracker (e.g. after deleting low-fit rows)
 
 ✅ Added cleanup command to remove orphan `data/` folders when tracker rows are deleted
 

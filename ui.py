@@ -119,7 +119,7 @@ def page_pipeline():
 
     st.divider()
     d_dup_cl = st.date_input("Date (Dup Cover Letter)", value=today, key="pipe_dup_cl_date")
-    _pipe_button("Dup Cover Letter", SCRIPTS_DIR / "duplicate_cover_letter_docs.py", [d_dup_cl.strftime("%Y-%m-%d")], None, desc="Duplicate cover letter docs for the selected date.")
+    _pipe_button("Dup Cover Letter", SCRIPTS_DIR / "make_cover_letter_docs.py", [d_dup_cl.strftime("%Y-%m-%d")], None, desc="Duplicate cover letter docs for the selected date.")
 
     st.divider()
     d_bullets = st.date_input("Date (Generate Bullets)", value=today, key="pipe_gen_bullets_date")
@@ -134,8 +134,8 @@ def page_pipeline():
     _pipe_button("Eval Intro/Edu", SCRIPTS_DIR / "evaluate_intro_education_agent.py", [d_evalintro.strftime("%Y-%m-%d")], None, desc="Evaluate intro and education for the selected date.")
 
     st.divider()
-    d_gencl = st.date_input("Date (Generate Cover Letters)", value=today, key="pipe_gen_cl_date")
-    _pipe_button("Generate Cover Letters", SCRIPTS_DIR / "batch_generate_cover_letter_agent.py", [d_gencl.strftime("%Y-%m-%d")], None, desc="Generate cover letters for the selected date.")
+    d_popcl = st.date_input("Date (Generate Cover Letters)", value=today, key="pipe_gen_cl_date")
+    _pipe_button("Generate Cover Letters", SCRIPTS_DIR / "batch_generate_cover_letter_agent.py", [d_popcl.strftime("%Y-%m-%d")], None, desc="Generate cover letters for the selected date.")
 
     st.divider()
     d_hm = st.date_input("Date (Generate HM Outreach)", value=today, key="pipe_hm_date")

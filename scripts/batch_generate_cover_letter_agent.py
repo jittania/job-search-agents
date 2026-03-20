@@ -1,8 +1,8 @@
 """
 Generate cover letters with Claude and upload them to the cover letters Drive folder as .docx
-(same naming as dupcl). Runs per job folder for a given day (default today). Skips dirs without job.txt.
+(same naming as makecl). Runs per job folder for a given day (default today). Skips dirs without job.txt.
 
-Alias: gencl [today|YYYY-MM-DD]
+Alias: popcl [today|YYYY-MM-DD]
 """
 import io
 import os
@@ -85,7 +85,7 @@ def get_drive_credentials() -> OAuthCredentials:
             creds.refresh(Request())
         else:
             if not os.path.exists(creds_path):
-                raise SystemExit(f"OAuth credentials not found at {creds_path}. Use same credentials.json as dupres/dupcl.")
+                raise SystemExit(f"OAuth credentials not found at {creds_path}. Use same credentials.json as dupres/makecl.")
             flow = InstalledAppFlow.from_client_secrets_file(creds_path, DRIVE_SCOPES)
             creds = flow.run_local_server(port=0)
         with open(token_path, "w") as f:
@@ -156,7 +156,7 @@ def is_job_dir_path(arg: str) -> bool:
 def main():
     load_dotenv()
 
-    # Single job path: gencl data/costco/2026-02-10 → generate and upload to Drive (need company/role from sheet)
+    # Single job path: popcl data/costco/2026-02-10 → generate and upload to Drive (need company/role from sheet)
     if len(sys.argv) == 2 and is_job_dir_path(sys.argv[1]):
         job_dir = Path(sys.argv[1]).resolve()
         company_slug = job_dir.parent.name
@@ -224,7 +224,7 @@ def main():
     if not sa_json or not Path(sa_json).is_file():
         raise SystemExit("Set GOOGLE_SA_JSON in .env.")
     if not folder_id:
-        raise SystemExit("Set DRIVE_COVER_LETTERS_FOLDER_ID in .env (same as dupcl).")
+        raise SystemExit("Set DRIVE_COVER_LETTERS_FOLDER_ID in .env (same as makecl).")
 
     gc = gspread.service_account(filename=sa_json)
     sh = gc.open_by_key(os.environ["SHEET_ID"]).worksheet(os.environ["WORKSHEET_NAME"])

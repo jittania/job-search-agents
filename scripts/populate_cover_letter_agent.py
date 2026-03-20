@@ -1,8 +1,8 @@
 """
-Generate a cover letter for a single job folder. Writes cover_letter.md (and optionally uploads .docx).
+Populate a cover letter for a single job folder. Writes cover_letter.md (and optionally uploads .docx).
 Single-job entry point. Use --overwrite to replace existing cover_letter.md.
 
-Invoked by: gencl (batch). Single job: gencl data/<company>/<date>
+Invoked by: popcl (batch). Single job: popcl data/<company>/<date>
 """
 import os
 import re
@@ -17,7 +17,7 @@ def main():
     args = [a for a in sys.argv[1:] if a != "--overwrite"]
     overwrite = "--overwrite" in sys.argv[1:]
     if len(args) != 1:
-        print("Usage: python scripts/generate_cover_letter_agent.py <job_folder> [--overwrite]")
+        print("Usage: python scripts/populate_cover_letter_agent.py <job_folder> [--overwrite]")
         raise SystemExit(1)
 
     job_dir = Path(args[0])

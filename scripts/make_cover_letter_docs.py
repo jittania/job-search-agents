@@ -1,10 +1,10 @@
 """
 For each job applied on a given date (default: today) from the tracker sheet, create a blank
 Word document and upload it to the cover letters Drive folder, named
-YYYY-MM-DD__JittaniaSmith_<CompanyCamel>_<PositionCamel>_CL.docx. Use gencl to fill with AI text.
+YYYY-MM-DD__JittaniaSmith_<CompanyCamel>_<PositionCamel>_CL.docx. Use popcl to fill with AI text.
 Requires same OAuth/sheet setup as dupres and DRIVE_COVER_LETTERS_FOLDER_ID.
 
-Alias: dupcl [YYYY-MM-DD]
+Alias: makecl [YYYY-MM-DD]
 """
 import io
 import os
