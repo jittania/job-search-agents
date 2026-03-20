@@ -1,7 +1,7 @@
 """
 Single command: for each new row (no archived_at), archive job, extract metadata,
-run initial fit score, and write COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET,
-ROLE FOCUS, ROLE LEVEL, and initial fit score to the sheet.
+and write COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL
+to the sheet.
 
 Alias: popjobs
 """
@@ -17,12 +17,9 @@ from dotenv import load_dotenv
 SCRIPT_DIR = Path(__file__).resolve().parent
 ARCHIVE_SCRIPT = SCRIPT_DIR / "archive_job_agent.py"
 EXTRACT_METADATA_SCRIPT = SCRIPT_DIR / "extract_job_metadata_agent.py"
-INITIAL_FIT_SCRIPT = SCRIPT_DIR / "initial_fit_score_agent.py"
-CLEARANCE_CHECK_SCRIPT = SCRIPT_DIR / "check_security_clearance.py"
 DATA_DIR = Path("data")
 
 DATE_APPLIED_HEADER = "date applied"
-INITIAL_FIT_SCORE_HEADER = "initial fit score"
 
 # Sheet column headers (case-insensitive) -> JSON key from extract_job_metadata_agent
 METADATA_COLUMNS = {
@@ -86,7 +83,6 @@ def main():
     url_col = col["posting link"]
     date_applied_col = col.get(DATE_APPLIED_HEADER.lower())
     company_col = col.get("company name") or col.get("company")
-    initial_fit_col = col.get(INITIAL_FIT_SCORE_HEADER.lower())
     job_dir_col = col.get("job_dir") or col.get("archive_path") or col.get("archive path")
 
     if not date_applied_col:
@@ -153,21 +149,7 @@ def main():
         if job_dir_col:
             ws.update_cell(idx, job_dir_col, str(job_dir))
         if not (job_dir / "job.txt").exists():
-            print(f"  ⚠️ No job.txt at {job_dir}; skipping metadata and fit score.")
-            ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
-            continue
-
-        # --- 1b. Skip if job requires security clearance ---
-        result = subprocess.run(
-            ["python", str(CLEARANCE_CHECK_SCRIPT), str(job_dir)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 1:
-            print(f"  ⏭️ Skipping (security clearance required).")
-            if initial_fit_col:
-                ws.update_cell(idx, initial_fit_col, "N/A (clearance)")
+            print(f"  ⚠️ No job.txt at {job_dir}; skipping metadata.")
             ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
             continue
 
@@ -202,21 +184,6 @@ def main():
                         ws.update_cell(idx, c, meta[json_key])
             except (json.JSONDecodeError, KeyError) as e:
                 print(f"  ⚠️ Could not parse metadata: {e}")
-
-        # --- 3. Initial fit score ---
-        if initial_fit_col:
-            print(f"  📊 Initial fit score…")
-            result = subprocess.run(
-                ["python", str(INITIAL_FIT_SCRIPT), str(job_dir)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0 and result.stdout.strip().isdigit():
-                ws.update_cell(idx, initial_fit_col, result.stdout.strip())
-                print(f"  → score: {result.stdout.strip()}")
-            else:
-                print(f"  ⚠️ Fit score failed: {result.stderr or result.stdout}")
 
         ws.update_cell(idx, archived_at_col, datetime.now().isoformat(timespec="seconds"))
         print(f"  ✅ Row {idx} done.")

@@ -78,38 +78,6 @@ def page_pipeline():
     _pipe_button("Archive Jobs", SCRIPTS_DIR / "batch_archive_from_sheet.py", [], None, desc="Archive jobs in bulk from the sheet.")
 
     st.divider()
-    company_fit = st.text_input("Company filter for **Batch Fit Score** (leave blank for all)", key="pipe_batch_fit_company", placeholder="e.g. Costco")
-    script_fit = SCRIPTS_DIR / "batch_initial_fit_score_agent.py"
-    if company_fit and company_fit.strip():
-        _pipe_button("Batch Fit Score", script_fit, [company_fit.strip()], None, desc="Run initial fit scoring (company filter).")
-    else:
-        overwrite_fit = st.radio("New only / Overwrite all", ["New only", "Overwrite all"], key="pipe_batch_fit_overwrite", horizontal=True)
-        stdin_fit = "A\n" if overwrite_fit == "Overwrite all" else "N\n"
-        c1, c2 = st.columns([1, 8])
-        with c1:
-            batch_fit_clicked = st.button("Batch Fit Score", key="pipe_batch_fit_btn")
-        with c2:
-            st.caption("Run initial fit scoring for all (new only or overwrite).")
-        if batch_fit_clicked:
-            if script_fit.exists():
-                st.info("This may take several minutes depending on the number of rows.")
-                with st.spinner("Running Batch Fit Score…"):
-                    code, out, err = run_cmd(script_fit, [], stdin_fit)
-                if code != 0:
-                    st.error(f"**Batch Fit Score** failed (exit code {code})")
-                    if err:
-                        st.code(err, language="text")
-                    if out:
-                        st.code(out, language="text")
-                else:
-                    st.success("**Batch Fit Score** completed.")
-                    combined = (out.strip() + "\n\n" + err.strip()).strip()
-                    if combined:
-                        st.code(combined, language="text")
-            else:
-                st.error(f"Script not found: {script_fit}")
-
-    st.divider()
     st.warning("⚠️ If this is the first time running a company through Batch Metadata, run it in the terminal instead. The UI can't respond to the LinkedIn company picker prompt.")
     company_meta = st.text_input("Company filter for **Batch Metadata** (leave blank for all)", key="pipe_batch_metadata_company", placeholder="e.g. Costco")
     script_meta = SCRIPTS_DIR / "batch_extract_metadata.py"

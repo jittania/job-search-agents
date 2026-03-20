@@ -10,14 +10,14 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 1. Save potential jobs to tracker (links and date columns only).
 
-2. Run one command for new rows: `popjobs` (or separately: `archivejobs` then `batchfitscore`). Re-run `batchfitscore` or `batchmetadata` as needed (each prompts: overwrite all or new only).
+2. Run one command for new rows: `popjobs` (or separately: `archivejobs` then `popjobs` for the rest). Re-run `batchmetadata` as needed (prompts: overwrite all or only rows missing metadata).
 
-        Note: If you get a "token has been expired or revoked" error from running `batchfitscore`, try:
+        Note: If you get a "token has been expired or revoked" error from a command that uses Google Drive (e.g. `popjobs` / resume Doc fetch), try:
         ```
-        cd <path>>/job-search-agents
+        cd <path>/job-search-agents
         rm .drive_oauth_token.json
         ```
-        and run `batchfitscore` again, which should trigger the browser-based sign-in again and write a new token.
+        then run the command again to trigger browser-based sign-in and write a new token.
 
 3. `fitjob <job_folder>` for single-job fit + keyword extraction (`fit.json`).
 
@@ -43,11 +43,9 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `archivejobs` → Archive new job postings from tracker only (no metadata or fit score). **Scripts invoked:** `archive_job` (per row without archived_at).
 
-- `batchfitscore [company]` → Fills or overwrites initial fit score (0–100) in the sheet. When **company** is provided (e.g. `batchfitscore Costco`), only that company’s rows are processed and the overwrite/new-only prompt is skipped (overwrite is used). Otherwise **prompts: overwrite all or new only**. **Scoring is deterministic:** LLM extracts structured requirements only; Python computes subscores from rules (must-have = literal substring of resume text or synonym; no semantic match). Hard assertions: job and resume ≥500 chars or fail; each row logs job_path, job_hash, resume_path, resume_hash and first 300 chars (stderr); self-checks fail if "matched" term not in resume or if product company has HL7/C#/.NET in must_have (wrong job file). Optional: if the sheet has a **job_dir** or **archive_path** column, that path is used for the job folder (unique dir per job); otherwise path is derived from company + date. See `scripts/fit_score_constants.py`. **Scripts invoked:** `initial_fit_score_agent` (per row; it runs `check_security_clearance` before scoring; clearance-required rows get "N/A (clearance)").
-
 - `batchhm [YYYY-MM-DD]` → Generates short hiring-manager outreach messages for new archived jobs; skips jobs where `hm_outreach.txt` already exists. **Scripts invoked:** (none).
 
-- `batchmetadata [company]` → Fills or overwrites metadata (company type, company size bucket, role focus, role level) in the sheet. When **company** is provided (e.g. `batchmetadata Costco`), only that company’s rows are processed and the overwrite/new-only prompt is skipped (overwrite is used). Otherwise **prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Uses same job_dir logic as batchfitscore. **Company type and size:** When multiple LinkedIn companies are found for a row (e.g. "Ditto"), the script pauses and lists up to 4 candidates (with **M for more**); you pick by number, paste a URL, or paste a LinkedIn company URL. The chosen URL is saved in the **COMPANY LINKEDIN PROFILE** column if that column exists; on later runs that URL is reused for that row (no prompt). For the selected profile, company type and size are taken from that LinkedIn page (Playwright). For rows without a saved or selected profile, DDG search + LLM are used. Role title and company name are set at archive time, not by batchmetadata. **Scripts invoked:** `batch_extract_metadata` (per row).
+- `batchmetadata [company]` → Fills or overwrites metadata (company type, company size bucket, role focus, role level) in the sheet. When **company** is provided (e.g. `batchmetadata Costco`), only that company’s rows are processed and the overwrite/new-only prompt is skipped (overwrite is used). Otherwise **prompts: overwrite all existing metadata, or only populate rows that don't have metadata yet** (skips rows that already have company type filled). Resolves each row’s job folder from **company + date applied**, or from a **job_dir** / **archive_path** column when present. **Company type and size:** When multiple LinkedIn companies are found for a row (e.g. "Ditto"), the script pauses and lists up to 4 candidates (with **M for more**); you pick by number, paste a URL, or paste a LinkedIn company URL. The chosen URL is saved in the **COMPANY LINKEDIN PROFILE** column if that column exists; on later runs that URL is reused for that row (no prompt). For the selected profile, company type and size are taken from that LinkedIn page (Playwright). For rows without a saved or selected profile, DDG search + LLM are used. Role title and company name are set at archive time, not by batchmetadata. **Scripts invoked:** `batch_extract_metadata` (per row).
 
 - **Metadata extraction (batch_extract_metadata / batchmetadata):** Company type and company size bucket use the **user-selected LinkedIn profile** when you pick from the multi-company list (employee count and industry are read from that page via Playwright). Otherwise they are derived from DDG search + LLM (employee count → size bucket; rubric for type). Sheet dropdowns should include **UNKNOWN** for company type and company size bucket.
 
@@ -86,7 +84,7 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase). **Scripts invoked:** (none).
 
-**Resume source:** Fit score, cover letters, bullets, evalskills, and evalintroedu read your resume from **Google Docs** only. Set `RESUME_GOOGLE_DOC_ID` or `RESUME_GOOGLE_DOC_URL` in `.env` (same OAuth as dupres: `credentials.json` / `.drive_oauth_token.json`). If the Doc can't be fetched, the script exits with an error.
+**Resume source:** `fitjob`, cover letters, bullets, evalskills, and evalintroedu read your resume from **Google Docs** only. Set `RESUME_GOOGLE_DOC_ID` or `RESUME_GOOGLE_DOC_URL` in `.env` (same OAuth as dupres: `credentials.json` / `.drive_oauth_token.json`). If the Doc can't be fetched, the script exits with an error.
 
 - `evalskills [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your TECHNICAL SKILLS section for that job and writes `skills_recommendations.json` in the job folder (omit/add recommendations tailored to the JD). No argument = today. Single job: `evalskills data/<company>/<date>` overwrites that folder's `skills_recommendations.json`. **Scripts invoked:** `evaluate_resume_skills_agent` (per job).
 
@@ -102,9 +100,11 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `gencl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as dupcl). No argument = today. Single job: `gencl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
 
-- `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, run initial fit score, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job`, `check_security_clearance`, `extract_job_metadata`, `initial_fit_score_agent` (per new row).
+- `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job`, `extract_job_metadata` (per new row).
 
 - `techstack [today|YYYY-MM-DD]` → Batch: infers company tech stack (frontend, backend, infra, databases, tools) from the job description and, if available, by inspecting the first URL in `sources.txt` or a URL you pass. Writes `tech_stack.json` in each job folder. Skips rows where APPLIED VIA ≠ "NOT APPLIED YET" and skips folders that already have `tech_stack.json`. Single job: `techstack data/<company>/<date>` or `techstack data/<company>/<date> <url_to_inspect>`. **Scripts invoked:** `tech_stack_agent` (per job).
+
+**Removed:** Sheet-based **initial fit score** (0–100 column) tooling: `scripts/initial_fit_score_agent.py`, `scripts/batch_initial_fit_score_agent.py` (`batchfitscore`), and `scripts/fit_score_rubric.md`. For per-job fit analysis + keywords, use **`fitjob`** → `fit.json`. Remove any `batchfitscore` alias from your shell config if you still have one.
 
 ---
 
