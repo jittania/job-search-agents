@@ -169,33 +169,6 @@ RESUME:
         if key not in data or not isinstance(data[key], list):
             data[key] = []
 
-    # #region agent log
-    _log_path = job_dir.parent.parent / ".cursor" / "debug-6857d3.log" if job_dir.parent.name and job_dir.parent.parent.name else Path(".cursor/debug-6857d3.log")
-    try:
-        _log_path = Path(".cursor/debug-6857d3.log")
-        omitting = data.get("skills_to_consider_omitting") or []
-        job_lower = (job_text or "").lower()
-        omit_in_jd = []
-        for item in omitting:
-            skill = (item.get("skill") or "").strip()
-            if skill and skill.lower() in job_lower:
-                omit_in_jd.append(skill)
-        cut_first = sum(1 for o in omitting if (o.get("priority") or "").strip().lower() == "cut_first")
-        recommended = sum(1 for o in omitting if (o.get("priority") or "").strip().lower() == "recommended")
-        optional = sum(1 for o in omitting if (o.get("priority") or "").strip().lower() == "optional")
-        with open(_log_path, "a", encoding="utf-8") as _f:
-            import time as _time
-            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H2", "location": "evaluate_resume_skills_agent.py", "message": "evalskills omit vs JD", "data": {"omit_count": len(omitting), "omit_skills_also_in_jd_count": len(omit_in_jd), "omit_skills_also_in_jd_sample": omit_in_jd[:8]}, "timestamp": int(_time.time() * 1000)}) + "\n")
-            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H5", "location": "evaluate_resume_skills_agent.py", "message": "evalskills priority", "data": {"cut_first": cut_first, "recommended": recommended, "optional": optional}, "timestamp": int(_time.time() * 1000)}) + "\n")
-    except Exception as _e:
-        try:
-            with open(Path(".cursor/debug-6857d3.log"), "a", encoding="utf-8") as _f:
-                import time as _time
-                _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H2,H5", "location": "evaluate_resume_skills_agent.py", "message": "evalskills log error", "data": {"error": str(_e)}, "timestamp": int(_time.time() * 1000)}) + "\n")
-        except Exception:
-            pass
-    # #endregion
-
     out_path = job_dir / OUTPUT_FILE
     out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"\n📋 Wrote {out_path}\n")

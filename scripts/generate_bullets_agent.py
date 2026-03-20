@@ -169,56 +169,6 @@ def main():
         print("Warning: bullets_to_remove should be an array, defaulting to empty.", file=sys.stderr)
         data["bullets_to_remove"] = []
 
-    # #region agent log
-    _log_path = Path(".cursor/debug-6857d3.log")
-    def _norm(s: str) -> str:
-        return " ".join((s or "").split())
-    def _word_count(s: str) -> int:
-        return len((s or "").split())
-    try:
-        bullets_remove = data.get("bullets_to_remove") or []
-        tailored = data.get("tailored_bullets") or []
-        n_replace = sum(1 for t in tailored if (t.get("placement") or {}).get("action") == "replace")
-        n_append = len(tailored) - n_replace
-        resume_lines = resume_text.splitlines()
-        all_bullet_texts = []
-        for line in resume_lines:
-            stripped = line.strip()
-            if stripped.startswith("*"):
-                bullet_text = stripped.lstrip("*").strip()
-                all_bullet_texts.append(bullet_text)
-        replace_refs = [((t.get("placement") or {}).get("replace_bullet_index") or "").strip() for t in tailored if (t.get("placement") or {}).get("action") == "replace"]
-        remove_refs = [(r.get("bullet_index") or "").strip() for r in bullets_remove if isinstance(r.get("bullet_index"), str) and (r.get("bullet_index") or "").strip()]
-        replace_match_1 = sum(1 for ref in replace_refs if ref and sum(1 for bt in all_bullet_texts if _norm(ref) == _norm(bt)) == 1)
-        replace_match_0 = sum(1 for ref in replace_refs if ref and sum(1 for bt in all_bullet_texts if _norm(ref) == _norm(bt)) == 0)
-        remove_match_1 = sum(1 for ref in remove_refs if ref and sum(1 for bt in all_bullet_texts if _norm(ref) == _norm(bt)) == 1)
-        remove_match_0 = sum(1 for ref in remove_refs if ref and sum(1 for bt in all_bullet_texts if _norm(ref) == _norm(bt)) == 0)
-        new_wc = sum(_word_count(t.get("bullet") or "") for t in tailored)
-        old_wc = 0
-        for t in tailored:
-            if (t.get("placement") or {}).get("action") != "replace":
-                continue
-            ref = ((t.get("placement") or {}).get("replace_bullet_index") or "").strip()
-            if not ref:
-                continue
-            for bt in all_bullet_texts:
-                if _norm(ref) == _norm(bt):
-                    old_wc += _word_count(bt)
-                    break
-        with open(_log_path, "a", encoding="utf-8") as _f:
-            import time as _time
-            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H1", "location": "generate_bullets_agent.py", "message": "genbullets counts", "data": {"bullets_to_remove": len(bullets_remove), "tailored_bullets": len(tailored), "n_replace": n_replace, "n_append": n_append, "ratio_remove_to_replace": round(len(bullets_remove) / max(n_replace, 1), 2)}, "timestamp": int(_time.time() * 1000)}) + "\n")
-            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H3", "location": "generate_bullets_agent.py", "message": "replace/remove ref match (full bullet)", "data": {"replace_match_exactly_one": replace_match_1, "replace_match_zero": replace_match_0, "remove_match_exactly_one": remove_match_1, "remove_match_zero": remove_match_0}, "timestamp": int(_time.time() * 1000)}) + "\n")
-            _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H4", "location": "generate_bullets_agent.py", "message": "word count new vs old", "data": {"new_bullets_total_words": new_wc, "replaced_old_bullets_total_words": old_wc, "net_word_delta": new_wc - old_wc}, "timestamp": int(_time.time() * 1000)}) + "\n")
-    except Exception as _e:
-        try:
-            with open(_log_path, "a", encoding="utf-8") as _f:
-                import time as _time
-                _f.write(json.dumps({"sessionId": "6857d3", "hypothesisId": "H1,H3,H4", "location": "generate_bullets_agent.py", "message": "genbullets log error", "data": {"error": str(_e)}, "timestamp": int(_time.time() * 1000)}) + "\n")
-        except Exception:
-            pass
-    # #endregion
-
     out_path = job_dir / "resume_bullets.json"
     out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"\n📝 Wrote {out_path}\n")
