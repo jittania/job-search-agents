@@ -161,6 +161,7 @@ def main():
             }}
             }}
         ],
+        "append_skipped_reason": "<explain why no bullets were appended for this JD and resume pairing>",
         "bullets_to_remove": [
             {{
             "section": "PROFESSIONAL EXPERIENCE" or "KEY PROJECTS",
