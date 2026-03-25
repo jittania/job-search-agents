@@ -216,7 +216,7 @@ def main():
         data["bullets_to_remove"] = []
 
     out_path = job_dir / "resume_bullets.json"
-    out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    out_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\n📝 Wrote {out_path}\n")
 
 
