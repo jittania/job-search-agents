@@ -141,6 +141,10 @@ def main():
 
         CRITICAL — Do NOT invent experience. Every tailored bullet MUST describe work that is explicitly or clearly implied on the resume. Do not add bullets about technologies, tools, or responsibilities the candidate has not used or done (e.g. do not add ASP.NET, C#, Windows Server, or similar if they do not appear on the resume). Never assume or invent that the candidate worked with the hiring company's products, internal teams, or JD-mentioned tools (e.g. "internal teams", "Claude Desktop", "Cowork", "Agent SDK") unless that experience is explicitly on the resume—do not infer collaboration or usage from the job description or company name. If the job description asks for something the resume does not support, do not invent a bullet for it; omit it or replace a less relevant bullet with one that reframes the candidate's actual experience. Each bullet must be grounded in specific resume content: same role/project, same or closely related technologies, same type of work.
 
+        If no existing bullet warrants replacement, use action 'append' instead. Do not force a replace.
+        If you cannot write a meaningfully better replacement bullet, omit it from tailored_bullets entirely rather than including a weak or duplicate one.
+        A replacement bullet is considered meaningfully better if you can: (1) add a quantified result that isn't in the original, (2)reframe the work to highlight an aspect of the experience that the original bullet undersells relative to what the JD is looking for, or (3) combine it with another weak bullet into a stronger one. Otherwise omit it.
+
         For each tailored bullet you must say WHERE on the resume it goes and whether to REPLACE an existing bullet or APPEND. You must also identify a THOROUGH list of existing resume bullets to REMOVE (least relevant to this job) so the resume can be shortened.
 
         Return ONLY valid JSON with this schema (no markdown, no code fences):
