@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from anthropic import Anthropic
@@ -78,14 +79,55 @@ def parse_bullets_json(raw: str) -> dict:
         raise ValueError(f"Invalid JSON from model (parse error: {e}). First 500 chars: {json_str[:500]!r}") from e
 
 
+def _is_yyyy_mm_dd(value: str) -> bool:
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_job_dir(arg: str) -> Path:
+    """
+    Resolve input into a job folder containing job.txt.
+    Supports:
+      - direct job folder path (absolute/relative)
+      - company slug (e.g., "costco") -> latest data/<company>/YYYY-MM-DD
+    """
+    candidate = Path(arg).resolve()
+    if (candidate / "job.txt").exists():
+        return candidate
+
+    data_dir = (Path(__file__).resolve().parent.parent / "data").resolve()
+    company_dir = (data_dir / arg).resolve()
+    if company_dir.is_dir():
+        dated_dirs = [
+            p
+            for p in company_dir.iterdir()
+            if p.is_dir() and _is_yyyy_mm_dd(p.name) and (p / "job.txt").exists()
+        ]
+        if dated_dirs:
+            return sorted(dated_dirs, key=lambda p: p.name)[-1]
+
+    raise FileNotFoundError(
+        f"Could not locate job folder for '{arg}'. "
+        f"Expected either a direct path containing job.txt or data/<company>/YYYY-MM-DD/job.txt."
+    )
+
+
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python scripts/generate_bullets_agent.py <job_folder_path>")
+        print("Usage: python scripts/generate_bullets_agent.py <job_folder_path|company_slug>")
         raise SystemExit(1)
 
     load_dotenv()
 
-    job_dir = Path(sys.argv[1])
+    try:
+        job_dir = resolve_job_dir(sys.argv[1])
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
+        raise SystemExit(1)
+
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from resume_loader import get_resume_text
 
