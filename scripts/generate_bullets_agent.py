@@ -184,8 +184,8 @@ def main():
 
     for attempt in range(2):
         msg = client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=1800,
+            model="claude-sonnet-4-6",
+            max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = (msg.content[0].text or "").strip()
