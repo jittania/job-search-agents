@@ -1,7 +1,7 @@
 """
 Generate tailored resume bullets for a single job folder. Writes resume_bullets.json with placement
-(section, role, replace/append) and bullets to add/remove. Single-job entry point; no args or date
-delegates to batch script.
+(section, role, replace/append) and bullets to add/remove. Two-pass: (1) draft JSON, (2) validate
+and clean against resume + JD. Single-job entry point; no args or date delegates to batch script.
 
 Invoked by: genbullets (batch). Single job: genbullets data/<company>/<date>
 """
@@ -115,6 +115,108 @@ def resolve_job_dir(arg: str) -> Path:
     )
 
 
+def _validation_prompt(job_text: str, resume_text: str, first_pass_json: str) -> str:
+    return f"""
+You are a strict editor validating resume bullet recommendations from a first-pass model.
+
+You have the JOB DESCRIPTION, the full RESUME (verbatim), and the FIRST-PASS JSON output below.
+
+Your job: produce a CLEANED version that applies ALL rules. Remove invalid entries, fix replace_bullet_index when you can find the exact resume line, and collect every issue in "warnings".
+
+If the first-pass output is already valid, return it unchanged with an empty warnings array. Do not make changes for the sake of making changes.
+
+Rules — bullets_to_remove:
+- If bullet_index does not appear VERBATIM on the RESUME (same full line text), REMOVE that entry from bullets_to_remove.
+- If the removal "reason" is generic (e.g. "not relevant", "weak bullet") and not tied to a specific JD requirement or concrete mismatch, either REWRITE the reason to cite the JD/resume contrast, or REMOVE the entry.
+- If a bullet marked for removal is HIGHLY relevant to the JD, REMOVE it from bullets_to_remove and add a warning explaining why it was kept.
+
+Rules — replace (placement.action == "replace"):
+- If the new bullet is not meaningfully different from replace_bullet_index (minor rewording, same facts), REMOVE it from tailored_bullets.
+- If the rewrite only swaps JD keywords without adding new information or clearer framing grounded in the resume, REMOVE it from tailored_bullets.
+- If the new bullet describes experience NOT on the resume, REMOVE it from tailored_bullets and add a warning.
+- If replace_bullet_index does not exactly match a bullet line on the resume, find the correct exact line if possible and fix it; otherwise REMOVE the entry.
+
+Rules — append (placement.action == "append"):
+- If the bullet describes experience NOT on the resume, REMOVE it and add a warning.
+- If it is a near-duplicate of an existing resume bullet or another tailored bullet, REMOVE it.
+- If it only repeats a JD requirement already covered by an existing bullet or another tailored bullet (replace or append), REMOVE it.
+
+Rules — general:
+- If any remaining bullet fabricates or infers experience not on the resume, REMOVE it and add a warning.
+- Compare the JD to the final tailored_bullets: if a critical JD requirement is clearly not addressed by any bullet in the final output, add a warning naming the gap (do not invent bullets to fill it).
+
+Preserve append_skipped_reason from the first pass if present and still accurate; otherwise update it or omit if the first pass had none.
+
+Return ONLY valid JSON with this exact shape (no markdown, no code fences):
+{{
+  "tailored_bullets": [ ... same object shape as input ... ],
+  "bullets_to_remove": [ ... same object shape as input ... ],
+  "append_skipped_reason": "<string or empty string>",
+  "warnings": [
+    {{ "message": "<concise warning for the candidate>" }}
+  ]
+}}
+
+Escape double quotes inside strings with backslash. No literal newlines inside JSON string values.
+
+JOB DESCRIPTION:
+{job_text}
+
+RESUME:
+{resume_text}
+
+FIRST-PASS JSON:
+{first_pass_json}
+""".strip()
+
+
+def run_validation_pass(
+    client: Anthropic,
+    job_text: str,
+    resume_text: str,
+    first_pass_data: dict,
+    model: str,
+    max_tokens: int,
+) -> dict:
+    first_pass_json = json.dumps(first_pass_data, indent=2, ensure_ascii=False)
+    prompt = _validation_prompt(job_text, resume_text, first_pass_json)
+    for attempt in range(2):
+        msg = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = (msg.content[0].text or "").strip()
+        try:
+            out = parse_bullets_json(raw)
+            break
+        except ValueError as e:
+            if attempt == 0:
+                print("  Validation pass: parse failed, retrying once…", file=sys.stderr)
+                prompt = prompt + "\n\nImportant: Return only valid JSON. Escape quotes in strings; no literal newlines in string values."
+            else:
+                print(f"Validation pass parse error: {e}", file=sys.stderr)
+                raise SystemExit(1)
+    if "tailored_bullets" not in out or not isinstance(out["tailored_bullets"], list):
+        print("Validation pass did not return tailored_bullets array.", file=sys.stderr)
+        raise SystemExit(1)
+    if "bullets_to_remove" not in out or not isinstance(out["bullets_to_remove"], list):
+        out["bullets_to_remove"] = []
+    if "warnings" not in out or not isinstance(out["warnings"], list):
+        out["warnings"] = []
+    else:
+        normalized: list[dict] = []
+        for w in out["warnings"]:
+            if isinstance(w, str) and w.strip():
+                normalized.append({"message": w.strip()})
+            elif isinstance(w, dict) and isinstance(w.get("message"), str) and w["message"].strip():
+                normalized.append({"message": w["message"].strip()})
+        out["warnings"] = normalized
+    if "append_skipped_reason" not in out:
+        out["append_skipped_reason"] = first_pass_data.get("append_skipped_reason", "")
+    return out
+
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: python scripts/generate_bullets_agent.py <job_folder_path|company_slug>")
@@ -135,6 +237,9 @@ def main():
     resume_text = get_resume_text()
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    model = "claude-sonnet-4-6"
+    max_tokens_draft = 4000
+    max_tokens_validation = 6000
 
     prompt = f"""
         You are tailoring resume bullets for a specific job. The candidate's base resume is TOO LONG (often by nearly half a page). Your output must help them both add/rewrite high-impact bullets AND cut enough content so the tailored resume fits.
@@ -189,13 +294,14 @@ def main():
 
     for attempt in range(2):
         msg = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4000,
+            model=model,
+            max_tokens=max_tokens_draft,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = (msg.content[0].text or "").strip()
         try:
             data = parse_bullets_json(raw)
+            print(f"🪙 Output tokens used: {msg.usage.output_tokens}", file=sys.stderr)
             break
         except ValueError as e:
             if attempt == 0:
@@ -215,6 +321,16 @@ def main():
     elif not isinstance(data["bullets_to_remove"], list):
         print("Warning: bullets_to_remove should be an array, defaulting to empty.", file=sys.stderr)
         data["bullets_to_remove"] = []
+
+    print("  Running validation pass…", file=sys.stderr)
+    data = run_validation_pass(
+        client,
+        job_text,
+        resume_text,
+        data,
+        model=model,
+        max_tokens=max_tokens_validation,
+    )
 
     out_path = job_dir / "resume_bullets.json"
     out_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
