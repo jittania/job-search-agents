@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic
+from anthropic import Anthropic, AnthropicError
 from dotenv import load_dotenv
 
 
@@ -42,7 +42,12 @@ def main():
     except FileNotFoundError as e:
         raise SystemExit(str(e))
 
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    api_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    if not api_key:
+        print("Set ANTHROPIC_API_KEY in .env or your environment.", file=sys.stderr)
+        raise SystemExit(1)
+
+    client = Anthropic(api_key=api_key)
 
     job_text = job_txt.read_text(encoding="utf-8")
     url = url_txt.read_text(encoding="utf-8").strip() if url_txt.exists() else ""
@@ -71,11 +76,16 @@ def main():
         {resume_text}
         """.strip()
 
-    msg = client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=900,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=900,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        print(f"🪙 Output tokens used: {msg.usage.output_tokens}", file=sys.stderr)
+    except AnthropicError as e:
+        print(f"Anthropic API error: {e}", file=sys.stderr)
+        raise SystemExit(1)
 
     letter = msg.content[0].text.strip()
     if not letter:
@@ -89,7 +99,12 @@ def main():
         flags=re.IGNORECASE,
     ).strip()
 
-    out_path.write_text(letter + "\n", encoding="utf-8")
+    try:
+        out_path.write_text(letter + "\n", encoding="utf-8")
+    except OSError as e:
+        print(f"Could not write {out_path}: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
     print(f"\n✍️ Wrote {out_path}\n")
 
 
