@@ -2,7 +2,7 @@
 Populate a cover letter for a single job folder. Writes cover_letter.md (and optionally uploads .docx).
 Single-job entry point. Use --overwrite to replace existing cover_letter.md.
 
-Invoked by: popcl (batch). Single job: popcl data/<company>/<date>
+Invoked by: popcl (batch). Single job: popcl data/<company>/<date> or popcl <company_slug> (same as genbullets).
 """
 import os
 import re
@@ -12,17 +12,23 @@ from pathlib import Path
 from anthropic import Anthropic, AnthropicError
 from dotenv import load_dotenv
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+
 
 def main():
     args = [a for a in sys.argv[1:] if a != "--overwrite"]
     overwrite = "--overwrite" in sys.argv[1:]
     if len(args) != 1:
-        print("Usage: python scripts/populate_cover_letter_agent.py <job_folder> [--overwrite]")
+        print("Usage: python scripts/populate_cover_letter_agent.py <job_folder|company_slug> [--overwrite]")
         raise SystemExit(1)
 
-    job_dir = Path(args[0])
-    if not job_dir.exists():
-        raise SystemExit(f"Folder not found: {job_dir}")
+    sys.path.insert(0, str(SCRIPT_DIR))
+    from generate_bullets_agent import resolve_job_dir
+
+    try:
+        job_dir = resolve_job_dir(args[0])
+    except FileNotFoundError as e:
+        raise SystemExit(str(e))
 
     job_txt = job_dir / "job.txt"
     url_txt = job_dir / "url.txt"
