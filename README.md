@@ -96,9 +96,11 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `funnelstats` → Generates a snapshot of job-search funnel metrics (applications, interviews, offers, timing), then writes `data/funnel_stats_<YYYY-MM-DD>.md`. **Scripts invoked:** (none).
 
-- `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for jobs from the tracker sheet for that day (date applied + company), overwriting existing resume_bullets.json if present. No argument = today. Single job: `genbullets data/<company>/<date>` overwrites `resume_bullets.json` for that folder. **Scripts invoked:** `generate_bullets_agent` (per job).
+- `genbullets [today|YYYY-MM-DD]` → Batch: generates tailored resume bullets (`resume_bullets.json`) for jobs from the tracker sheet for that day (date applied + company), overwriting existing resume_bullets.json if present. No argument = today. Single job: `genbullets data/<company>/<date>` or `genbullets <company_slug>` (uses the latest dated folder under `data/<slug>/` that has `job.txt`) overwrites `resume_bullets.json` for that folder. **Scripts invoked:** `generate_bullets_agent` (per job).
 
-- `popcl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as makecl). No argument = today. Single job: `popcl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** (none).
+- `popcl [today|YYYY-MM-DD]` → Batch: generates cover letters with Claude and uploads them to the cover letters Drive folder as .docx (same naming as makecl). No argument = today. Single job: `popcl data/<company>/<date>` generates and uploads (or updates) that job's .docx in Drive. **Scripts invoked:** `batch_generate_cover_letter_agent` (per job).
+
+- `populate_cover_letter_agent` → Single job only: writes `cover_letter.md` in the job folder (Claude draft, then a second validation pass grounded in your resume; overwrites existing `cover_letter.md` like genbullets). Pass `data/<company>/<date>` or `<company_slug>` with the same folder resolution as single-job genbullets. **Scripts invoked:** `populate_cover_letter_agent`.
 
 - `popjobs`  → For each new row: archive job, infer/fill COMPANY, ROLE TITLE, COMPANY TYPE, COMPANY SIZE BUCKET, ROLE FOCUS, ROLE LEVEL from the job description, and update the sheet. One command for "new rows only." Metadata: company type and company size are **derived from employee count** when available (neutral web search); otherwise UNKNOWN. Sheet dropdowns for company type and company size bucket should include **UNKNOWN**. **Scripts invoked:** `archive_job`, `extract_job_metadata` (per new row).
 
