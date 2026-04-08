@@ -130,10 +130,6 @@ def page_pipeline():
     _pipe_button("Eval Skills", SCRIPTS_DIR / "evaluate_resume_skills_agent.py", [d_evalskills.strftime("%Y-%m-%d")], None, desc="Evaluate resume skills fit for the selected date.")
 
     st.divider()
-    d_evalintro = st.date_input("Date (Eval Intro/Edu)", value=today, key="pipe_eval_intro_date")
-    _pipe_button("Eval Intro/Edu", SCRIPTS_DIR / "evaluate_intro_education_agent.py", [d_evalintro.strftime("%Y-%m-%d")], None, desc="Evaluate intro and education for the selected date.")
-
-    st.divider()
     d_popcl = st.date_input("Date (Generate Cover Letters)", value=today, key="pipe_gen_cl_date")
     _pipe_button("Generate Cover Letters", SCRIPTS_DIR / "batch_generate_cover_letter_agent.py", [d_popcl.strftime("%Y-%m-%d")], None, desc="Generate cover letters for the selected date.")
 

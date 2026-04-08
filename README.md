@@ -25,7 +25,7 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 1. `dupres` — batch duplicate base resume; `makecl` — create blank cover letter docs in Drive.
 
-2. `genbullets && evalskills && evalintroedu` — tailored resume bullets and skills/intro/education recommendations; then `popcl` — cover letters to Drive
+2. `genbullets && evalskills` — tailored resume bullets and skills recommendations; then `popcl` — cover letters to Drive
 
 3. `batchhm` — hiring manager outreach drafts.
 
@@ -84,11 +84,9 @@ source ~/.zshrc && source .venv/bin/activate && streamlit run ui.py
 
 - `dupres [YYYY-MM-DD]` → For each job applied on that date (default: today), copies your resume template Google Doc into the Company Specific Drive folder and renames each copy to `YYYY-MM-DD__JittaniaSmith_<Company>_<Position>` (camelCase). **Scripts invoked:** (none).
 
-**Resume source:** `fitjob`, cover letters, bullets, evalskills, and evalintroedu read your resume from **Google Docs** only. Set `RESUME_GOOGLE_DOC_ID` or `RESUME_GOOGLE_DOC_URL` in `.env` (same OAuth as dupres: `credentials.json` / `.drive_oauth_token.json`). If the Doc can't be fetched, the script exits with an error.
+**Resume source:** `fitjob`, cover letters, bullets, and evalskills read your resume from **Google Docs** only. Set `RESUME_GOOGLE_DOC_ID` or `RESUME_GOOGLE_DOC_URL` in `.env` (same OAuth as dupres: `credentials.json` / `.drive_oauth_token.json`). If the Doc can't be fetched, the script exits with an error.
 
 - `evalskills [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your TECHNICAL SKILLS section for that job and writes `skills_recommendations.json` in the job folder (omit/add recommendations tailored to the JD). No argument = today. Single job: `evalskills data/<company>/<date>` overwrites that folder's `skills_recommendations.json`. **Scripts invoked:** `evaluate_resume_skills_agent` (per job).
-
-- `evalintroedu [today|YYYY-MM-DD]` → Batch: for each job from the tracker sheet for that day, evaluates your resume INTRO (summary paragraph) and EDUCATION section for relevancy to the job and writes `intro_education_recommendations.json` (suggestions to emphasize, trim, or add; per-education-entry relevance). No argument = today. Single job: `evalintroedu data/<company>/<date>`. **Scripts invoked:** `evaluate_intro_education_agent` (per job).
 
 - `fitjob <job_folder>` → Runs Claude fit scoring + keyword extraction on a single archived job folder and writes `fit.json`. **Scripts invoked:** (none).
 
