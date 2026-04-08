@@ -3,7 +3,7 @@ Evaluate the TECHNICAL SKILLS section of the resume for a specific job. Writes
 <job_folder>/skills_recommendations.json (omit/add recommendations tailored to the JD).
 No args or today/YYYY-MM-DD delegates to batch script.
 
-Alias: evalskills [today|YYYY-MM-DD] or evalskills data/<company>/<date>
+Alias: evalskills [today|YYYY-MM-DD] or evalskills data/<company>/<date> or evalskills <company_slug>
 """
 import json
 import os
@@ -91,24 +91,35 @@ def main():
     if len(sys.argv) == 1:
         subprocess.run([sys.executable, str(batch_script)], check=True)
         return
-    # One arg that looks like "today" or YYYY-MM-DD → batch for that day
-    if len(sys.argv) == 2:
-        arg = sys.argv[1].strip().lower()
-        if arg == "today" or (len(arg) == 10 and arg[4] == "-" and arg[7] == "-"):
-            subprocess.run([sys.executable, str(batch_script), sys.argv[1]], check=True)
-            return
-    # One arg that is a job folder path → single job; else usage
     if len(sys.argv) != 2:
-        print("Usage: python scripts/evaluate_resume_skills_agent.py [today|YYYY-MM-DD]  OR  <job_folder_path>", file=sys.stderr)
+        print(
+            "Usage: python scripts/evaluate_resume_skills_agent.py [today|YYYY-MM-DD]  OR  <job_folder_path|company_slug>",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
-    job_dir = Path(sys.argv[1]).resolve()
-    if not (job_dir / "job.txt").exists():
-        print("Usage: python scripts/evaluate_resume_skills_agent.py [today|YYYY-MM-DD]  OR  <job_folder_path>", file=sys.stderr)
+
+    arg = sys.argv[1].strip()
+    arg_lower = arg.lower()
+    # One arg that looks like "today" or YYYY-MM-DD → batch for that day
+    if arg_lower == "today" or (len(arg_lower) == 10 and arg_lower[4] == "-" and arg_lower[7] == "-"):
+        subprocess.run([sys.executable, str(batch_script), arg], check=True)
+        return
+
+    sys.path.insert(0, str(script_dir))
+    from generate_bullets_agent import resolve_job_dir
+
+    try:
+        job_dir = resolve_job_dir(arg)
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
+        print(
+            "Usage: python scripts/evaluate_resume_skills_agent.py [today|YYYY-MM-DD]  OR  <job_folder_path|company_slug>",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     load_dotenv()
     job_txt = job_dir / "job.txt"
-    sys.path.insert(0, str(script_dir))
     from resume_loader import get_resume_text
     try:
         resume_text = get_resume_text()
